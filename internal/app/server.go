@@ -24,6 +24,9 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	userRepo := repositories.NewUserRepositoryMongo(db.Collection("users"))
 	productRepo := repositories.NewProductRepositoryMongo(db.Collection("products"))
 	orderRepo := repositories.NewOrderRepositoryMongo(db.Collection("orders"))
+	kitRepo := repositories.NewKitRepositoryMongo(db.Collection("kits"))
+	distributorLeadRepo := repositories.NewDistributorLeadRepositoryMongo(db.Collection("distributor_leads"))
+	wizardRepo := repositories.NewWizardRecommendationRepositoryMongo(db.Collection("wizard_recommendations"))
 
 	// ── Services ─────────────────────────────────────────────────────────────
 	authService := services.NewAuthService(userRepo, cfg.JWTSecret)
@@ -31,6 +34,9 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	productService := services.NewProductService(productRepo)
 	cartService := services.NewCartService(productRepo)
 	orderService := services.NewOrderService(orderRepo, productRepo)
+	kitService := services.NewKitService(kitRepo)
+	distributorLeadService := services.NewDistributorLeadService(distributorLeadRepo)
+	wizardService := services.NewWizardRecommendationService(wizardRepo)
 	imageStorage := services.NewLocalImageStorage("./uploads", cfg.AppURL+"/uploads")
 
 	paymentService, err := services.NewPaymentService(
@@ -52,6 +58,9 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	productHandler := handlers.NewProductHandler(productService, imageStorage)
 	orderHandler := handlers.NewOrderHandler(orderService, cartService, paymentService)
 	webhookHandler := handlers.NewWebhookHandler(paymentService, orderService, cfg.MPWebhookSecret)
+	kitHandler := handlers.NewKitHandler(kitService)
+	distributorLeadHandler := handlers.NewDistributorLeadHandler(distributorLeadService)
+	wizardHandler := handlers.NewWizardRecommendationHandler(wizardService)
 
 	// ── Router ────────────────────────────────────────────────────────────────
 	router := gin.New()
@@ -84,7 +93,6 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	}
 
 	// Productos (lectura pública)
-	// Las rutas estáticas deben registrarse antes que /:id para que Gin las priorice.
 	products := v1.Group("/products")
 	{
 		products.GET("", productHandler.ListProducts)
@@ -92,6 +100,19 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		products.GET("/brand/:brand", productHandler.ListProductsByBrand)
 		products.GET("/:id", productHandler.GetProduct)
 	}
+
+	// Kits (lectura pública)
+	kits := v1.Group("/kits")
+	{
+		kits.GET("", kitHandler.ListKits)
+		kits.GET("/:id", kitHandler.GetKit)
+	}
+
+	// Distributor leads (público — formulario de contacto)
+	v1.POST("/distributor-leads", distributorLeadHandler.CreateLead)
+
+	// Wizard recommendations (público — analytics)
+	v1.POST("/wizard-recommendations", wizardHandler.CreateRecommendation)
 
 	// Rutas protegidas (cualquier usuario autenticado)
 	protected := v1.Group("")
@@ -117,6 +138,9 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		admin.PUT("/products/:id", productHandler.UpdateProduct)
 		admin.PATCH("/products/:id/variants/:sku/stock", productHandler.UpdateVariantStock)
 		admin.DELETE("/products/:id", productHandler.DeleteProduct)
+
+		admin.POST("/kits", kitHandler.CreateKit)
+		admin.DELETE("/kits/:id", kitHandler.DeleteKit)
 
 		admin.GET("/orders", orderHandler.ListAllOrders)
 		admin.PATCH("/orders/:id/status", orderHandler.UpdateAdminOrderStatus)
