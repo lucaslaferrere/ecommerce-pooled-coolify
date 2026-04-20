@@ -1,0 +1,232 @@
+package services
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"ecommerce-pooled/internal/core/domain"
+	"ecommerce-pooled/internal/core/ports"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
+
+// OrderService contiene la lógica de negocio relacionada con órdenes
+type OrderService struct {
+	orderRepository   ports.OrderRepository
+	productRepository ports.ProductRepository
+}
+
+// NewOrderService crea una nueva instancia de OrderService
+func NewOrderService(orderRepository ports.OrderRepository, productRepository ports.ProductRepository) *OrderService {
+	return &OrderService{
+		orderRepository:   orderRepository,
+		productRepository: productRepository,
+	}
+}
+
+// CreateOrder crea una nueva orden
+func (s *OrderService) CreateOrder(ctx context.Context, order *domain.Order) error {
+	// Validaciones de negocio
+	if order.UserID.IsZero() {
+		return errors.New("ID de usuario requerido")
+	}
+
+	if len(order.Items) == 0 {
+		return errors.New("una orden debe tener al menos un item")
+	}
+
+	if order.Total <= 0 {
+		return errors.New("total debe ser mayor a 0")
+	}
+
+	// Establecer estado inicial
+	if order.Status == "" {
+		order.Status = "pending"
+	}
+
+	order.CreatedAt = time.Now()
+	order.UpdatedAt = time.Now()
+
+	// Verificar disponibilidad de productos y stock
+	for _, item := range order.Items {
+		product, err := s.productRepository.GetByID(ctx, item.ProductID)
+		if err != nil {
+			return err
+		}
+
+		if product == nil {
+			return ErrProductNotFound
+		}
+
+		// Verificar disponibilidad de la variante
+		found := false
+		for _, variant := range product.Variants {
+			if variant.SKU == item.VariantSKU {
+				if variant.Stock < item.Quantity {
+					return ErrInsufficientStock
+				}
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return errors.New("variante no encontrada")
+		}
+	}
+
+	return s.orderRepository.Create(ctx, order)
+}
+
+// GetOrder obtiene una orden por ID
+func (s *OrderService) GetOrder(ctx context.Context, id primitive.ObjectID) (*domain.Order, error) {
+	order, err := s.orderRepository.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if order == nil {
+		return nil, ErrOrderNotFound
+	}
+	return order, nil
+}
+
+// GetUserOrders obtiene todas las órdenes de un usuario
+func (s *OrderService) GetUserOrders(ctx context.Context, userID primitive.ObjectID, skip int64, limit int64) ([]*domain.Order, error) {
+	return s.orderRepository.GetByUserID(ctx, userID, skip, limit)
+}
+
+// UpdateOrderStatus actualiza el estado de una orden
+func (s *OrderService) UpdateOrderStatus(ctx context.Context, id primitive.ObjectID, status string) error {
+	// Validar estados válidos
+	validStatuses := map[string]bool{
+		"pending":    true,
+		"paid":       true,
+		"processing": true,
+		"shipped":    true,
+		"delivered":  true,
+		"cancelled":  true,
+	}
+
+	if !validStatuses[status] {
+		return ErrInvalidOrderStatus
+	}
+
+	return s.orderRepository.UpdateStatus(ctx, id, status)
+}
+
+// CancelOrder cancela una orden
+func (s *OrderService) CancelOrder(ctx context.Context, id primitive.ObjectID) error {
+	order, err := s.orderRepository.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if order == nil {
+		return ErrOrderNotFound
+	}
+
+	// Solo se pueden cancelar órdenes que están en estado pending o processing
+	if order.Status != "pending" && order.Status != "processing" {
+		return errors.New("solo se pueden cancelar órdenes en estado pending o processing")
+	}
+
+	return s.orderRepository.UpdateStatus(ctx, id, "cancelled")
+}
+
+// DeleteOrder elimina una orden
+func (s *OrderService) DeleteOrder(ctx context.Context, id primitive.ObjectID) error {
+	return s.orderRepository.Delete(ctx, id)
+}
+
+// ListOrders obtiene todas las órdenes con paginación (solo admin)
+func (s *OrderService) ListOrders(ctx context.Context, skip int64, limit int64) ([]*domain.Order, error) {
+	return s.orderRepository.List(ctx, skip, limit)
+}
+
+// SetPreference asocia un ID de preferencia de Mercado Pago a una orden existente.
+// Llamado por el handler de checkout después de crear la preferencia en MP.
+func (s *OrderService) SetPreference(ctx context.Context, id primitive.ObjectID, preferenceID string) error {
+	order, err := s.orderRepository.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if order == nil {
+		return ErrOrderNotFound
+	}
+	order.PreferenceID = preferenceID
+	order.UpdatedAt = time.Now()
+	return s.orderRepository.Update(ctx, order)
+}
+
+// ConfirmPayment marca la orden como pagada y registra el ID de pago de MP.
+// Idempotente: si la orden ya está en estado "paid", retorna nil.
+func (s *OrderService) ConfirmPayment(ctx context.Context, orderID primitive.ObjectID, paymentID string) error {
+	order, err := s.orderRepository.GetByID(ctx, orderID)
+	if err != nil {
+		return err
+	}
+	if order == nil {
+		return ErrOrderNotFound
+	}
+	if order.Status == "paid" {
+		return nil // ya procesado, respuesta idempotente
+	}
+	order.Status = "paid"
+	order.PaymentID = paymentID
+	order.UpdatedAt = time.Now()
+	return s.orderRepository.Update(ctx, order)
+}
+
+// Checkout descuenta stock atómicamente y crea la orden. Recibe ítems ya validados
+// (con UnitPrice calculado) provenientes de CartService.ValidateCart.
+func (s *OrderService) Checkout(ctx context.Context, userID primitive.ObjectID, items []domain.CartItem, shipping domain.ShippingDetails) (*domain.Order, error) {
+	if userID.IsZero() {
+		return nil, errors.New("ID de usuario requerido")
+	}
+	if len(items) == 0 {
+		return nil, errors.New("el carrito no puede estar vacío")
+	}
+
+	var total float64
+	for _, item := range items {
+		total += item.UnitPrice * float64(item.Quantity)
+	}
+
+	// Decrementar stock atómicamente; rastrear éxitos para rollback en caso de fallo parcial
+	type decremented struct {
+		productID primitive.ObjectID
+		sku       string
+		qty       int
+	}
+	var done []decremented
+
+	for _, item := range items {
+		if err := s.productRepository.DecrementVariantStock(ctx, item.ProductID, item.VariantSKU, item.Quantity); err != nil {
+			for _, d := range done {
+				_ = s.productRepository.IncrementVariantStock(ctx, d.productID, d.sku, d.qty)
+			}
+			return nil, ErrInsufficientStock
+		}
+		done = append(done, decremented{item.ProductID, item.VariantSKU, item.Quantity})
+	}
+
+	now := time.Now()
+	order := &domain.Order{
+		UserID:          userID,
+		Items:           items,
+		Total:           total,
+		Status:          "pending",
+		ShippingDetails: shipping,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+
+	if err := s.orderRepository.Create(ctx, order); err != nil {
+		for _, d := range done {
+			_ = s.productRepository.IncrementVariantStock(ctx, d.productID, d.sku, d.qty)
+		}
+		return nil, err
+	}
+
+	return order, nil
+}
