@@ -26,7 +26,7 @@ type Config struct {
 // Load carga la configuración desde variables de entorno
 func Load() *Config {
 	return &Config{
-		Port:            getEnv("PORT", "8080"),
+		Port:            getEnv("PORT", "8081"),
 		MongoURI:        getEnv("MONGO_URI", "mongodb://localhost:27017"),
 		DBName:          getEnv("DB_NAME", "ecommerce"),
 		GinMode:         getEnv("GIN_MODE", "debug"),
