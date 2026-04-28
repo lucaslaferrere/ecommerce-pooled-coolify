@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -28,30 +29,50 @@ func NewProductHandler(productService *services.ProductService, imageStorage ser
 
 // CreateProduct maneja POST /api/products (solo admin)
 func (h *ProductHandler) CreateProduct(c *gin.Context) {
-	var req struct {
-		Name        string           `json:"name" binding:"required"`
-		Description string           `json:"description"`
-		BasePrice   float64          `json:"base_price" binding:"required,gt=0"`
-		Category    string           `json:"category" binding:"required"`
-		Brand       string           `json:"brand" binding:"required"`
-		Images      []string         `json:"images"`
-		Variants    []domain.Variant `json:"variants" binding:"required"`
-	}
+	name := c.PostForm("name")
+	description := c.PostForm("description")
+	category := c.PostForm("category")
+	brand := c.PostForm("brand")
+	basePriceStr := c.PostForm("base_price")
+	variantsJSON := c.PostForm("variants")
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if name == "" || category == "" || basePriceStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "faltan campos requeridos: name, category, base_price"})
 		return
 	}
 
-	// Crear producto
+	basePrice, err := strconv.ParseFloat(basePriceStr, 64)
+	if err != nil || basePrice < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "base_price inválido"})
+		return
+	}
+
+	var variants []domain.Variant
+	if variantsJSON != "" {
+		if err := json.Unmarshal([]byte(variantsJSON), &variants); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "variants inválido"})
+			return
+		}
+	}
+
+	// Manejar imagen si viene
+	var images []string
+	file, err := c.FormFile("image")
+	if err == nil {
+		savedURL, err := h.imageStorage.UploadImage(c.Request.Context(), file)
+		if err == nil {
+			images = append(images, savedURL)
+		}
+	}
+
 	product := &domain.Product{
-		Name:        req.Name,
-		Description: req.Description,
-		BasePrice:   req.BasePrice,
-		Category:    req.Category,
-		Brand:       req.Brand,
-		Images:      req.Images,
-		Variants:    req.Variants,
+		Name:        name,
+		Description: description,
+		BasePrice:   basePrice,
+		Category:    category,
+		Brand:       brand,
+		Images:      images,
+		Variants:    variants,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -80,6 +101,20 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, product)
+}
+
+// ListAdminProducts maneja GET /api/v1/admin/products (solo admin)
+func (h *ProductHandler) ListAdminProducts(c *gin.Context) {
+	skip, _ := strconv.ParseInt(c.DefaultQuery("skip", "0"), 10, 64)
+	limit, _ := strconv.ParseInt(c.DefaultQuery("limit", "100"), 10, 64)
+
+	products, err := h.productService.ListProducts(c.Request.Context(), map[string]interface{}{}, skip, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, products) // array directo, no wrapped
 }
 
 // ListProducts maneja GET /api/products (público)

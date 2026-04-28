@@ -2,6 +2,8 @@ package config
 
 import (
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
 // Config contiene la configuración de la aplicación
@@ -23,8 +25,16 @@ type Config struct {
 	MPCurrencyID    string // Código de moneda (ARS, MXN, BRL, etc.)
 }
 
-// Load carga la configuración desde variables de entorno
+// Load carga la configuración desde variables de entorno.
+// Intenta leer un archivo .env desde el directorio de trabajo actual;
+// si no lo encuentra, prueba cmd/api/.env (ejecución desde raíz del módulo).
 func Load() *Config {
+	for _, path := range []string{".env", "cmd/api/.env"} {
+		if err := godotenv.Load(path); err == nil {
+			break
+		}
+	}
+
 	return &Config{
 		Port:            getEnv("PORT", "8080"),
 		MongoURI:        getEnv("MONGO_URI", "mongodb://localhost:27017"),

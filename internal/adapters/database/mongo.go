@@ -2,6 +2,8 @@ package database
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -14,28 +16,56 @@ type Client struct {
 	db     *mongo.Database
 }
 
-// NewClient crea una nueva conexión a MongoDB
+// NewClient crea una nueva conexión a MongoDB.
+// Las credenciales se extraen del URI y se pasan explícitamente al driver
+// mediante options.Credential para evitar problemas de parseo del string.
 func NewClient(ctx context.Context, mongoURI string, dbName string) (*Client, error) {
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
+	creds, err := credentialsFromURI(mongoURI)
+	if err != nil {
+		return nil, fmt.Errorf("parseando credenciales de MONGO_URI: %w", err)
+	}
+
+	clientOpts := options.Client().
+		ApplyURI(mongoURI).
+		SetAuth(creds)
+
+	client, err := mongo.Connect(ctx, clientOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	// Verificar la conexión
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	pingCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err = client.Ping(ctx, nil)
-	if err != nil {
+	if err = client.Ping(pingCtx, nil); err != nil {
 		return nil, err
 	}
-
-	db := client.Database(dbName)
 
 	return &Client{
 		client: client,
-		db:     db,
+		db:     client.Database(dbName),
 	}, nil
+}
+
+// credentialsFromURI extrae usuario, contraseña y authSource del URI de MongoDB.
+func credentialsFromURI(rawURI string) (options.Credential, error) {
+	parsed, err := url.Parse(rawURI)
+	if err != nil {
+		return options.Credential{}, err
+	}
+
+	cred := options.Credential{
+		AuthSource: parsed.Query().Get("authSource"),
+		Username:   parsed.User.Username(),
+	}
+	if p, ok := parsed.User.Password(); ok {
+		cred.Password = p
+	}
+	// authSource por defecto es "admin" para conexiones con credenciales
+	if cred.AuthSource == "" && cred.Username != "" {
+		cred.AuthSource = "admin"
+	}
+	return cred, nil
 }
 
 // GetDatabase retorna la instancia de la base de datos

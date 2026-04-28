@@ -78,43 +78,33 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	// ── /api/v1 ───────────────────────────────────────────────────────────────
 	v1 := router.Group("/api/v1")
 
-	// Webhooks (público — MP llama sin autenticación, pero valida HMAC internamente)
-	webhooks := v1.Group("/webhooks")
+	// ── Rutas PÚBLICAS — sin ningún middleware de autenticación ───────────────
+	public := v1.Group("")
 	{
-		webhooks.POST("/mercadopago", webhookHandler.HandleMercadoPago)
+		// Webhooks (MP llama sin JWT; la firma HMAC se valida internamente)
+		public.POST("/webhooks/mercadopago", webhookHandler.HandleMercadoPago)
+
+		// Auth
+		public.POST("/auth/register", authHandler.Register)
+		public.POST("/auth/login", authHandler.Login)
+		public.POST("/auth/refresh", authHandler.Refresh)
+
+		// Productos (lectura)
+		public.GET("/products", productHandler.ListProducts)
+		public.GET("/products/category/:category", productHandler.ListProductsByCategory)
+		public.GET("/products/brand/:brand", productHandler.ListProductsByBrand)
+		public.GET("/products/:id", productHandler.GetProduct)
+
+		// Kits (lectura)
+		public.GET("/kits", kitHandler.ListKits)
+		public.GET("/kits/:id", kitHandler.GetKit)
+
+		// Formularios de contacto / analytics
+		public.POST("/distributor-leads", distributorLeadHandler.CreateLead)
+		public.POST("/wizard-recommendations", wizardHandler.CreateRecommendation)
 	}
 
-	// Auth (público)
-	auth := v1.Group("/auth")
-	{
-		auth.POST("/register", authHandler.Register)
-		auth.POST("/login", authHandler.Login)
-		auth.POST("/refresh", authHandler.Refresh)
-	}
-
-	// Productos (lectura pública)
-	products := v1.Group("/products")
-	{
-		products.GET("", productHandler.ListProducts)
-		products.GET("/category/:category", productHandler.ListProductsByCategory)
-		products.GET("/brand/:brand", productHandler.ListProductsByBrand)
-		products.GET("/:id", productHandler.GetProduct)
-	}
-
-	// Kits (lectura pública)
-	kits := v1.Group("/kits")
-	{
-		kits.GET("", kitHandler.ListKits)
-		kits.GET("/:id", kitHandler.GetKit)
-	}
-
-	// Distributor leads (público — formulario de contacto)
-	v1.POST("/distributor-leads", distributorLeadHandler.CreateLead)
-
-	// Wizard recommendations (público — analytics)
-	v1.POST("/wizard-recommendations", wizardHandler.CreateRecommendation)
-
-	// Rutas protegidas (cualquier usuario autenticado)
+	// ── Rutas PROTEGIDAS — requieren JWT de cualquier usuario autenticado ─────
 	protected := v1.Group("")
 	protected.Use(handlers.AuthMiddleware(authService))
 	{
@@ -127,7 +117,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		protected.PATCH("/orders/:id/cancel", orderHandler.CancelOrder)
 	}
 
-	// Rutas de administrador
+	// ── Rutas de ADMINISTRADOR — requieren JWT con role="admin" ───────────────
 	admin := v1.Group("/admin")
 	admin.Use(handlers.AuthMiddleware(authService), handlers.AdminMiddleware())
 	{
@@ -138,6 +128,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		admin.PUT("/products/:id", productHandler.UpdateProduct)
 		admin.PATCH("/products/:id/variants/:sku/stock", productHandler.UpdateVariantStock)
 		admin.DELETE("/products/:id", productHandler.DeleteProduct)
+		admin.GET("/products", productHandler.ListAdminProducts)
 
 		admin.POST("/kits", kitHandler.CreateKit)
 		admin.DELETE("/kits/:id", kitHandler.DeleteKit)
