@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -29,6 +30,7 @@ func main() {
 	log.Printf("Iniciando servidor | modo=%s puerto=%s db=%s", cfg.GinMode, cfg.Port, cfg.DBName)
 
 	// ── Conexión a MongoDB ────────────────────────────────────────────────────
+	logMongoURI(cfg.MongoURI)
 	mongoClient, err := database.NewClient(context.Background(), cfg.MongoURI, cfg.DBName)
 	if err != nil {
 		log.Fatalf("Error conectando a MongoDB: %v", err)
@@ -76,6 +78,23 @@ func main() {
 		log.Fatalf("Graceful shutdown forzado: %v", err)
 	}
 	log.Println("Servidor apagado correctamente")
+}
+
+// logMongoURI imprime la URI con la contraseña enmascarada.
+// Si la URI no contiene usuario, imprime una advertencia de credenciales ausentes.
+func logMongoURI(rawURI string) {
+	parsed, err := url.Parse(rawURI)
+	if err != nil {
+		log.Printf("[MONGO] URI inválida: %v", err)
+		return
+	}
+	if parsed.User == nil || parsed.User.Username() == "" {
+		log.Printf("[MONGO] ADVERTENCIA: URI cargada sin credenciales → %s (verifica tu .env)", rawURI)
+		return
+	}
+	safe := *parsed
+	safe.User = url.UserPassword(parsed.User.Username(), "***")
+	log.Printf("[MONGO] URI cargada → %s", safe.String())
 }
 
 // ensureIndexes crea los índices de MongoDB al arrancar (idempotente).

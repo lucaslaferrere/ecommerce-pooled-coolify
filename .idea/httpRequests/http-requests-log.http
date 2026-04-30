@@ -1,0 +1,149 @@
+POST http://localhost:8080/api/v1/auth/login
+Content-Type: application/json
+Content-Length: 66
+User-Agent: IntelliJ HTTP Client/GoLand 2025.3.1.1
+Accept-Encoding: br, deflate, gzip, x-gzip
+Accept: */*
+
+{
+  "email": "belen@admin.com",
+  "password": "superpassword123"
+}
+
+<> 2026-04-24T140232.401.json
+
+###
+
+POST http://localhost:8080/api/v1/auth/login
+Content-Type: application/json
+Content-Length: 66
+User-Agent: IntelliJ HTTP Client/GoLand 2025.3.1.1
+Accept-Encoding: br, deflate, gzip, x-gzip
+Accept: */*
+
+{
+  "email": "belen@admin.com",
+  "password": "superpassword123"
+}
+
+<> 2026-04-24T122814.401.json
+
+###
+
+POST http://localhost:8080/api/v1/auth/register
+Content-Type: application/json
+Content-Length: 85
+User-Agent: IntelliJ HTTP Client/GoLand 2025.3.1.1
+Accept-Encoding: br, deflate, gzip, x-gzip
+Accept: */*
+
+{
+  "email": "belen@admin.com",
+  "password": "superpassword123",
+  "role": "admin"
+}
+
+<> 2026-04-24T122759.401.json
+
+###
+
+POST http://localhost:8080/api/v1/auth/register
+Content-Type: application/json
+Content-Length: 85
+User-Agent: IntelliJ HTTP Client/GoLand 2025.3.1.1
+Accept-Encoding: br, deflate, gzip, x-gzip
+Accept: */*
+
+{
+  "email": "belen@admin.com",
+  "password": "superpassword123",
+  "role": "admin"
+}
+
+<> 2026-04-24T122600.401.json
+
+###
+
+POST http://localhost:8080/api/v1/auth/register
+Content-Type: application/json
+Content-Length: 85
+User-Agent: IntelliJ HTTP Client/GoLand 2025.3.1.1
+Accept-Encoding: br, deflate, gzip, x-gzip
+Accept: */*
+
+{
+  "email": "belen@admin.com",
+  "password": "superpassword123",
+  "role": "admin"
+}
+
+<> 2026-04-24T122552.401.json
+
+###
+
+POST http://localhost:8080/api/v1/auth/login
+Content-Type: application/json
+Content-Length: 66
+User-Agent: IntelliJ HTTP Client/GoLand 2025.3.1.1
+Accept-Encoding: br, deflate, gzip, x-gzip
+Accept: */*
+
+{
+  "email": "belen@admin.com",
+  "password": "superpassword123"
+}
+
+<> 2026-04-24T122514.401.json
+
+###
+
+POST http://localhost:8080/api/v1/auth/register
+Content-Type: application/json
+Content-Length: 85
+User-Agent: IntelliJ HTTP Client/GoLand 2025.3.1.1
+Accept-Encoding: br, deflate, gzip, x-gzip
+Accept: */*
+
+{
+  "email": "belen@admin.com",
+  "password": "superpassword123",
+  "role": "admin"
+}
+
+<> 2026-04-24T122511.401.json
+
+###
+
+POST http://localhost:8080/api/v1/auth/login
+Content-Type: application/json
+Content-Length: 66
+User-Agent: IntelliJ HTTP Client/GoLand 2025.3.1.1
+Accept-Encoding: br, deflate, gzip, x-gzip
+Accept: */*
+
+{
+  "email": "belen@admin.com",
+  "password": "superpassword123"
+}
+
+<> 2026-04-24T121418.401.json
+
+###
+
+POST http://localhost:8080/api/v1/auth/register
+Content-Type: application/json
+Content-Length: 85
+User-Agent: IntelliJ HTTP Client/GoLand 2025.3.1.1
+Accept-Encoding: br, deflate, gzip, x-gzip
+Accept: */*
+
+{
+  "email": "belen@admin.com",
+  "password": "superpassword123",
+  "role": "admin"
+}
+
+<> 2026-04-24T121413.401.json
+
+###
+

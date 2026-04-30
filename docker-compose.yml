@@ -1,0 +1,16 @@
+services:
+  mongo:
+    image: mongo:4.4        # <-- cambiá 7 por 4.4
+    container_name: ecommerce_mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: ecommerce
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:

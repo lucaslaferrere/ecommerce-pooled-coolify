@@ -8,6 +8,7 @@ import (
 
 	"ecommerce-pooled/internal/core/domain"
 	"ecommerce-pooled/internal/core/ports"
+
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -124,7 +125,7 @@ func (s *AuthService) Login(ctx context.Context, email string, password string) 
 // GenerateTokens genera un par de JWT (Access y Refresh)
 func (s *AuthService) GenerateTokens(userID string, role string, email string) (*TokenPair, error) {
 	// Access Token - válido por 15 minutos
-	accessTokenExpiry := time.Now().Add(15 * time.Minute)
+	accessTokenExpiry := time.Now().Add(24 * time.Hour)
 	accessClaims := jwt.MapClaims{
 		"user_id": userID,
 		"email":   email,

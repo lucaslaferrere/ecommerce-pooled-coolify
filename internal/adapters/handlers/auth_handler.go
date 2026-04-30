@@ -20,11 +20,13 @@ func NewAuthHandler(authService *services.AuthService) *AuthHandler {
 	}
 }
 
-// RegisterRequest contiene los datos para registrar un nuevo usuario
+// RegisterRequest contiene los datos para registrar un nuevo usuario.
+// Role es opcional: si se omite el frontend recibirá role="client" por defecto;
+// si se envía debe ser "admin" o "client".
 type RegisterRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=6"`
-	Role     string `json:"role" binding:"required,oneof=admin client"`
+	Role     string `json:"role"    binding:"omitempty,oneof=admin client"`
 }
 
 // LoginRequest contiene las credenciales para iniciar sesión
@@ -44,6 +46,10 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	if req.Role == "" {
+		req.Role = "client"
 	}
 
 	user, err := h.authService.Register(c.Request.Context(), req.Email, req.Password, req.Role)
