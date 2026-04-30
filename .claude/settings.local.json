@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(go get *)",
-      "Bash(go build *)"
+      "Bash(go build *)",
+      "Bash(docker compose *)",
+      "Bash(netstat -ano)",
+      "Bash(curl -s http://localhost:8080/api/v1/products)",
+      "Bash(python -m json.tool)",
+      "Bash(curl -s http://localhost:8080/api/v1/products/69f3a6cf0cae288b4351f073)"
     ]
   }
 }
