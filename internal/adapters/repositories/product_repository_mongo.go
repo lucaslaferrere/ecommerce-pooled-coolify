@@ -77,6 +77,7 @@ func (r *ProductRepositoryMongo) Update(ctx context.Context, product *domain.Pro
 			"brand":       product.Brand,
 			"images":      product.Images,
 			"variants":    product.Variants,
+			"specs":       product.Specs,
 			"updated_at":  product.UpdatedAt,
 		},
 	}

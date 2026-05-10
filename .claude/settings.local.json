@@ -7,7 +7,15 @@
       "Bash(netstat -ano)",
       "Bash(curl -s http://localhost:8080/api/v1/products)",
       "Bash(python -m json.tool)",
-      "Bash(curl -s http://localhost:8080/api/v1/products/69f3a6cf0cae288b4351f073)"
+      "Bash(curl -s http://localhost:8080/api/v1/products/69f3a6cf0cae288b4351f073)",
+      "Bash(go run *)",
+      "Bash(findstr :8080)",
+      "Bash(tasklist *)",
+      "PowerShell(Get-Process *)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "Bash(curl *)",
+      "PowerShell(Start-Process \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\"; Write-Output \"Docker Desktop launched\")",
+      "Bash(docker info *)"
     ]
   }
 }

@@ -15,6 +15,12 @@ type Variant struct {
 	PriceAdjustment float64 `bson:"price_adjustment" json:"price_adjustment"` // Ajuste al precio base
 }
 
+// Spec representa un par clave/valor de la ficha técnica del producto
+type Spec struct {
+	Key   string `bson:"key" json:"key"`
+	Value string `bson:"value" json:"value"`
+}
+
 // Product representa la entidad de producto en la aplicación
 type Product struct {
 	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
@@ -25,6 +31,7 @@ type Product struct {
 	Brand       string             `bson:"brand" json:"brand"`
 	Images      []string           `bson:"images" json:"images"`     // Array de URLs de imágenes
 	Variants    []Variant          `bson:"variants" json:"variants"` // Slice de variantes
+	Specs       []Spec             `bson:"specs" json:"specs"`       // Ficha técnica (pares clave/valor)
 	CreatedAt   time.Time          `bson:"created_at" json:"created_at,omitempty"`
 	UpdatedAt   time.Time          `bson:"updated_at" json:"updated_at,omitempty"`
 }

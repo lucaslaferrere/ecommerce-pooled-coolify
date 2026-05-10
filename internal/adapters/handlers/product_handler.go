@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -12,6 +14,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
+
+// maxMultipartMemory limita la memoria usada al parsear formularios multipart.
+// El excedente se vuelca a archivos temporales — no es un límite duro de tamaño.
+const maxMultipartMemory = 10 << 20 // 10 MiB
 
 // ProductHandler maneja las peticiones HTTP relacionadas con productos
 type ProductHandler struct {
@@ -27,42 +33,61 @@ func NewProductHandler(productService *services.ProductService, imageStorage ser
 	}
 }
 
-// CreateProduct maneja POST /api/products (solo admin)
+// CreateProduct maneja POST /api/products (solo admin).
+// Espera multipart/form-data con campos: name, description, category, brand,
+// base_price (string numérico), variants (JSON), specs (JSON), image (archivo opcional).
 func (h *ProductHandler) CreateProduct(c *gin.Context) {
+	if err := c.Request.ParseMultipartForm(maxMultipartMemory); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("multipart inválido: %v", err)})
+		return
+	}
+
 	name := c.PostForm("name")
 	description := c.PostForm("description")
 	category := c.PostForm("category")
 	brand := c.PostForm("brand")
 	basePriceStr := c.PostForm("base_price")
-	variantsJSON := c.PostForm("variants")
 
-	if name == "" || category == "" || basePriceStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "faltan campos requeridos: name, category, base_price"})
+	// Validación de campos requeridos, granular
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "campo 'name' es requerido"})
+		return
+	}
+	if category == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "campo 'category' es requerido"})
+		return
+	}
+	if basePriceStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "campo 'base_price' es requerido"})
 		return
 	}
 
 	basePrice, err := strconv.ParseFloat(basePriceStr, 64)
-	if err != nil || basePrice < 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "base_price inválido"})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("base_price inválido: %v", err)})
+		return
+	}
+	if basePrice < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "base_price debe ser >= 0"})
 		return
 	}
 
-	var variants []domain.Variant
-	if variantsJSON != "" {
-		if err := json.Unmarshal([]byte(variantsJSON), &variants); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "variants inválido"})
-			return
-		}
+	variants, err := parseVariantsForm(c.PostForm("variants"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("variants inválido: %v", err)})
+		return
 	}
 
-	// Manejar imagen si viene
-	var images []string
-	file, err := c.FormFile("image")
-	if err == nil {
-		savedURL, err := h.imageStorage.UploadImage(c.Request.Context(), file)
-		if err == nil {
-			images = append(images, savedURL)
-		}
+	specs, err := parseSpecsForm(c.PostForm("specs"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("specs inválido: %v", err)})
+		return
+	}
+
+	images, err := h.uploadImageIfPresent(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("image inválido: %v", err)})
+		return
 	}
 
 	product := &domain.Product{
@@ -73,6 +98,7 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		Brand:       brand,
 		Images:      images,
 		Variants:    variants,
+		Specs:       specs,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -83,6 +109,49 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, product)
+}
+
+// parseVariantsForm decodifica el JSON stringificado del campo 'variants'.
+// Cadena vacía → slice nil sin error (campo opcional).
+func parseVariantsForm(raw string) ([]domain.Variant, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	var variants []domain.Variant
+	if err := json.Unmarshal([]byte(raw), &variants); err != nil {
+		return nil, err
+	}
+	return variants, nil
+}
+
+// parseSpecsForm decodifica el JSON stringificado del campo 'specs'.
+// Cadena vacía → slice nil sin error (campo opcional).
+func parseSpecsForm(raw string) ([]domain.Spec, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	var specs []domain.Spec
+	if err := json.Unmarshal([]byte(raw), &specs); err != nil {
+		return nil, err
+	}
+	return specs, nil
+}
+
+// uploadImageIfPresent sube el archivo 'image' del formulario si existe.
+// Devuelve slice nil sin error cuando no se adjuntó archivo (http.ErrMissingFile).
+func (h *ProductHandler) uploadImageIfPresent(c *gin.Context) ([]string, error) {
+	file, err := c.FormFile("image")
+	if err != nil {
+		if errors.Is(err, http.ErrMissingFile) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	savedURL, err := h.imageStorage.UploadImage(c.Request.Context(), file)
+	if err != nil {
+		return nil, err
+	}
+	return []string{savedURL}, nil
 }
 
 // GetProduct maneja GET /api/products/:id (público)
@@ -176,7 +245,10 @@ func (h *ProductHandler) ListProductsByBrand(c *gin.Context) {
 	})
 }
 
-// UpdateProduct maneja PUT /api/products/:id (solo admin)
+// UpdateProduct maneja PUT /api/products/:id (solo admin).
+// Espera multipart/form-data (mismos campos que CreateProduct).
+// Semántica parcial: solo se actualizan los campos presentes en el formulario.
+// Para variants y specs, presencia con valor "[]" limpia el array por completo.
 func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := primitive.ObjectIDFromHex(idStr)
@@ -185,49 +257,91 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 		return
 	}
 
-	var req struct {
-		Name        string           `json:"name"`
-		Description string           `json:"description"`
-		BasePrice   float64          `json:"base_price"`
-		Category    string           `json:"category"`
-		Brand       string           `json:"brand"`
-		Images      []string         `json:"images"`
-		Variants    []domain.Variant `json:"variants"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := c.Request.ParseMultipartForm(maxMultipartMemory); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("multipart inválido: %v", err)})
 		return
 	}
 
-	// Obtener producto existente
 	product, err := h.productService.GetProduct(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Actualizar campos
-	if req.Name != "" {
-		product.Name = req.Name
+	form := c.Request.PostForm
+
+	if form.Has("name") {
+		v := form.Get("name")
+		if v == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "campo 'name' no puede ser vacío"})
+			return
+		}
+		product.Name = v
 	}
-	if req.Description != "" {
-		product.Description = req.Description
+	if form.Has("description") {
+		product.Description = form.Get("description")
 	}
-	if req.BasePrice > 0 {
-		product.BasePrice = req.BasePrice
+	if form.Has("category") {
+		v := form.Get("category")
+		if v == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "campo 'category' no puede ser vacío"})
+			return
+		}
+		product.Category = v
 	}
-	if req.Category != "" {
-		product.Category = req.Category
+	if form.Has("brand") {
+		product.Brand = form.Get("brand")
 	}
-	if req.Brand != "" {
-		product.Brand = req.Brand
+
+	if form.Has("base_price") {
+		basePrice, err := strconv.ParseFloat(form.Get("base_price"), 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("base_price inválido: %v", err)})
+			return
+		}
+		if basePrice < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "base_price debe ser >= 0"})
+			return
+		}
+		product.BasePrice = basePrice
 	}
-	if len(req.Images) > 0 {
-		product.Images = req.Images
+
+	if form.Has("variants") {
+		variants, err := parseVariantsForm(form.Get("variants"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("variants inválido: %v", err)})
+			return
+		}
+		product.Variants = variants
 	}
-	if len(req.Variants) > 0 {
-		product.Variants = req.Variants
+
+	if form.Has("specs") {
+		specs, err := parseSpecsForm(form.Get("specs"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("specs inválido: %v", err)})
+			return
+		}
+		product.Specs = specs
+	}
+
+	// 'images' JSON opcional: reemplazo explícito del array de URLs.
+	if form.Has("images") {
+		var imgs []string
+		if err := json.Unmarshal([]byte(form.Get("images")), &imgs); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("images inválido: %v", err)})
+			return
+		}
+		product.Images = imgs
+	}
+
+	// Archivo nuevo opcional: se agrega al array existente sin pisarlo.
+	newImages, err := h.uploadImageIfPresent(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("image inválido: %v", err)})
+		return
+	}
+	if len(newImages) > 0 {
+		product.Images = append(product.Images, newImages...)
 	}
 
 	product.UpdatedAt = time.Now()

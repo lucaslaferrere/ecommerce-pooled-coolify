@@ -5,28 +5,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="01f1b90c-b239-49d4-befc-de0e2cb50155" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.env" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.agent.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.ask2agent.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/ecommerce-pooled.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/go.imports.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/cmd/api/.env" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/00_START_HERE.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/API_ENDPOINTS.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ARCHITECTURE.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/AUTH_API_REFERENCE.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/COMPLETION_REPORT.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/DEVELOPMENT.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/INDEX.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/PROJECT_SUMMARY.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/cmd/api/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/cmd/api/main.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.sum" beforeDir="false" afterPath="$PROJECT_DIR$/go.sum" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/adapters/database/mongo.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/adapters/database/mongo.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/adapters/handlers/auth_handler.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/adapters/handlers/auth_handler.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/app/server.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/app/server.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/config/config.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/config/config.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.claude/settings.local.json" beforeDir="false" afterPath="$PROJECT_DIR$/.claude/settings.local.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/adapters/handlers/product_handler.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/adapters/handlers/product_handler.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/adapters/repositories/product_repository_mongo.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/adapters/repositories/product_repository_mongo.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/core/domain/product.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/core/domain/product.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -42,13 +26,13 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="HttpClientOnboardingState"><![CDATA[{
-  "isOnboardingCommentShown": true
-}]]></component>
-  <component name="KubernetesApiPersistence"><![CDATA[{}]]></component>
-  <component name="KubernetesApiProvider"><![CDATA[{
-  "isMigrated": true
-}]]></component>
+  <component name="HttpClientOnboardingState">{
+  &quot;isOnboardingCommentShown&quot;: true
+}</component>
+  <component name="KubernetesApiPersistence">{}</component>
+  <component name="KubernetesApiProvider">{
+  &quot;isMigrated&quot;: true
+}</component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 7
 }</component>
@@ -77,7 +61,7 @@
     "RunOnceActivity.go.modules.go.list.on.any.changes.was.set": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
     "SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "git-widget-placeholder": "main",
+    "git-widget-placeholder": "v2",
     "go.sdk.automatically.set": "true",
     "ignore.virus.scanning.warn.message": "true",
     "last_opened_file_path": "E:/LyRSolutions/ecommerce-pooled/cmd/api",
@@ -90,21 +74,6 @@
     <key name="CopyFile.RECENT_KEYS">
       <recent name="E:\LyRSolutions\ecommerce-pooled\cmd\api" />
     </key>
-  </component>
-  <component name="RunDashboard">
-    <option name="configurationStatuses">
-      <map>
-        <entry key="HttpClient.HttpRequestRunConfigurationType">
-          <value>
-            <map>
-              <entry key="All in e2e_flow" value="STOPPED" />
-              <entry key="e2e_flow | --------------------------------------------------------------------------#1" value="STOPPED" />
-              <entry key="e2e_flow | ==========================================================================" value="STOPPED" />
-            </map>
-          </value>
-        </entry>
-      </map>
-    </option>
   </component>
   <component name="RunManager" selected="Go Build.go build ecommerce-pooled/cmd/api">
     <configuration default="true" type="GoApplicationRunConfiguration" factoryName="Go Application">
