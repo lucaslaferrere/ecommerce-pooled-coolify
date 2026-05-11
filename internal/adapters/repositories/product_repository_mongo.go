@@ -73,6 +73,7 @@ func (r *ProductRepositoryMongo) Update(ctx context.Context, product *domain.Pro
 			"name":        product.Name,
 			"description": product.Description,
 			"base_price":  product.BasePrice,
+			"stock":       product.Stock,
 			"category":    product.Category,
 			"brand":       product.Brand,
 			"images":      product.Images,
