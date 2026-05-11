@@ -301,6 +301,14 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 		}
 		product.BasePrice = basePrice
 	}
+	if form.Has("stock") {
+		stock, err := strconv.Atoi(form.Get("stock"))
+		if err != nil || stock < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "stock inválido: debe ser un entero >= 0"})
+			return
+		}
+		product.Stock = stock
+	}
 	if form.Has("variants") {
 		variants, err := parseVariantsForm(form.Get("variants"))
 		if err != nil {

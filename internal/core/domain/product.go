@@ -41,6 +41,7 @@ type Product struct {
 	Subtitle    string             `bson:"subtitle,omitempty" json:"subtitle,omitempty"`
 	Description string             `bson:"description" json:"description"`
 	BasePrice   float64            `bson:"base_price" json:"base_price"`
+	Stock       int                `bson:"stock" json:"stock"`
 	Category    string             `bson:"category" json:"category"`
 	Brand       string             `bson:"brand" json:"brand"`
 	Images      []string           `bson:"images" json:"images"`
