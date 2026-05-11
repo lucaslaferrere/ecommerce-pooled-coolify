@@ -285,3 +285,35 @@ func (r *ProductRepositoryMongo) UpdateVariantStock(ctx context.Context, product
 
 	return nil
 }
+
+// DecrementProductStock reduce el stock a nivel producto de forma atómica.
+// Usado para productos sin variantes.
+func (r *ProductRepositoryMongo) DecrementProductStock(ctx context.Context, productID primitive.ObjectID, quantity int) error {
+	if productID.IsZero() {
+		return errors.New("ID de producto no puede ser vacío")
+	}
+	filter := bson.M{
+		"_id":   productID,
+		"stock": bson.M{"$gte": quantity},
+	}
+	result, err := r.collection.UpdateOne(ctx, filter, bson.M{"$inc": bson.M{"stock": -quantity}})
+	if err != nil {
+		return err
+	}
+	if result.ModifiedCount == 0 {
+		return errors.New("stock insuficiente")
+	}
+	return nil
+}
+
+// IncrementProductStock incrementa el stock a nivel producto (rollback de checkout).
+func (r *ProductRepositoryMongo) IncrementProductStock(ctx context.Context, productID primitive.ObjectID, quantity int) error {
+	if productID.IsZero() {
+		return errors.New("ID de producto no puede ser vacío")
+	}
+	_, err := r.collection.UpdateOne(ctx,
+		bson.M{"_id": productID},
+		bson.M{"$inc": bson.M{"stock": quantity}},
+	)
+	return err
+}

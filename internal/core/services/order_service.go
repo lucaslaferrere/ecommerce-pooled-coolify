@@ -201,9 +201,19 @@ func (s *OrderService) Checkout(ctx context.Context, userID primitive.ObjectID, 
 	var done []decremented
 
 	for _, item := range items {
-		if err := s.productRepository.DecrementVariantStock(ctx, item.ProductID, item.VariantSKU, item.Quantity); err != nil {
+		var decrementErr error
+		if item.VariantSKU == "" {
+			decrementErr = s.productRepository.DecrementProductStock(ctx, item.ProductID, item.Quantity)
+		} else {
+			decrementErr = s.productRepository.DecrementVariantStock(ctx, item.ProductID, item.VariantSKU, item.Quantity)
+		}
+		if decrementErr != nil {
 			for _, d := range done {
-				_ = s.productRepository.IncrementVariantStock(ctx, d.productID, d.sku, d.qty)
+				if d.sku == "" {
+					_ = s.productRepository.IncrementProductStock(ctx, d.productID, d.qty)
+				} else {
+					_ = s.productRepository.IncrementVariantStock(ctx, d.productID, d.sku, d.qty)
+				}
 			}
 			return nil, ErrInsufficientStock
 		}

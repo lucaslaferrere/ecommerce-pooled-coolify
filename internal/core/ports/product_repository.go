@@ -38,4 +38,10 @@ type ProductRepository interface {
 
 	// IncrementVariantStock incrementa el stock de una variante (usado para rollback)
 	IncrementVariantStock(ctx context.Context, productID primitive.ObjectID, sku string, quantity int) error
+
+	// DecrementProductStock reduce el stock a nivel producto (para productos sin variantes)
+	DecrementProductStock(ctx context.Context, productID primitive.ObjectID, quantity int) error
+
+	// IncrementProductStock incrementa el stock a nivel producto (rollback)
+	IncrementProductStock(ctx context.Context, productID primitive.ObjectID, quantity int) error
 }

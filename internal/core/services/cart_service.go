@@ -51,7 +51,10 @@ func (s *CartService) ValidateCart(ctx context.Context, items []domain.CartItem)
 		sku := item.VariantSKU
 
 		if len(product.Variants) == 0 {
-			// Producto sin variantes: usa base_price directamente
+			// Producto sin variantes: verifica stock a nivel producto
+			if product.Stock > 0 && product.Stock < item.Quantity {
+				return nil, ErrInsufficientStock
+			}
 			unitPrice = product.BasePrice
 		} else if sku == "" {
 			// SKU no especificado: usar la primera variante disponible con stock
