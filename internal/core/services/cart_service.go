@@ -48,19 +48,35 @@ func (s *CartService) ValidateCart(ctx context.Context, items []domain.CartItem)
 		}
 
 		var unitPrice float64
-		if item.VariantSKU == "" || len(product.Variants) == 0 {
-			// Producto sin variante: usa base_price directamente
+		sku := item.VariantSKU
+
+		if len(product.Variants) == 0 {
+			// Producto sin variantes: usa base_price directamente
 			unitPrice = product.BasePrice
+		} else if sku == "" {
+			// SKU no especificado: usar la primera variante disponible con stock
+			first := &product.Variants[0]
+			for j := range product.Variants {
+				if product.Variants[j].Stock >= item.Quantity {
+					first = &product.Variants[j]
+					break
+				}
+			}
+			if first.Stock < item.Quantity {
+				return nil, ErrInsufficientStock
+			}
+			sku = first.SKU
+			unitPrice = product.BasePrice + first.PriceAdjustment
 		} else {
 			var found *domain.Variant
 			for j := range product.Variants {
-				if product.Variants[j].SKU == item.VariantSKU {
+				if product.Variants[j].SKU == sku {
 					found = &product.Variants[j]
 					break
 				}
 			}
 			if found == nil {
-				return nil, errors.New("variante no encontrada: " + item.VariantSKU)
+				return nil, errors.New("variante no encontrada: " + sku)
 			}
 			if found.Stock < item.Quantity {
 				return nil, ErrInsufficientStock
@@ -70,7 +86,7 @@ func (s *CartService) ValidateCart(ctx context.Context, items []domain.CartItem)
 
 		validated[i] = domain.CartItem{
 			ProductID:  item.ProductID,
-			VariantSKU: item.VariantSKU,
+			VariantSKU: sku,
 			Quantity:   item.Quantity,
 			UnitPrice:  unitPrice,
 		}
