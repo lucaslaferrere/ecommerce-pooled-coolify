@@ -84,11 +84,23 @@ func (s *PaymentService) CreatePreference(ctx context.Context, order *domain.Ord
 
 	items := make([]preference.ItemRequest, len(order.Items))
 	for i, item := range order.Items {
+		itemID := item.VariantSKU
+		if itemID == "" {
+			itemID = item.ProductID.Hex()
+		}
+		title := item.VariantSKU
+		if title == "" {
+			title = "Producto " + item.ProductID.Hex()
+		}
+		unitPrice := item.UnitPrice
+		if unitPrice <= 0 {
+			unitPrice = 1
+		}
 		items[i] = preference.ItemRequest{
-			ID:         item.VariantSKU,
-			Title:      fmt.Sprintf("SKU %s", item.VariantSKU),
+			ID:         itemID,
+			Title:      title,
 			Quantity:   item.Quantity,
-			UnitPrice:  item.UnitPrice,
+			UnitPrice:  unitPrice,
 			CurrencyID: s.currencyID,
 		}
 	}
