@@ -48,7 +48,6 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	brand := c.PostForm("brand")
 	basePriceStr := c.PostForm("base_price")
 
-	// Validación de campos requeridos, granular
 	if name == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "campo 'name' es requerido"})
 		return
@@ -246,9 +245,7 @@ func (h *ProductHandler) ListProductsByBrand(c *gin.Context) {
 }
 
 // UpdateProduct maneja PUT /api/products/:id (solo admin).
-// Espera multipart/form-data (mismos campos que CreateProduct).
-// Semántica parcial: solo se actualizan los campos presentes en el formulario.
-// Para variants y specs, presencia con valor "[]" limpia el array por completo.
+// Espera multipart/form-data. Semántica parcial: solo se actualizan los campos presentes.
 func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := primitive.ObjectIDFromHex(idStr)
@@ -292,7 +289,6 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	if form.Has("brand") {
 		product.Brand = form.Get("brand")
 	}
-
 	if form.Has("base_price") {
 		basePrice, err := strconv.ParseFloat(form.Get("base_price"), 64)
 		if err != nil {
@@ -305,7 +301,6 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 		}
 		product.BasePrice = basePrice
 	}
-
 	if form.Has("variants") {
 		variants, err := parseVariantsForm(form.Get("variants"))
 		if err != nil {
@@ -314,7 +309,6 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 		}
 		product.Variants = variants
 	}
-
 	if form.Has("specs") {
 		specs, err := parseSpecsForm(form.Get("specs"))
 		if err != nil {
@@ -323,8 +317,6 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 		}
 		product.Specs = specs
 	}
-
-	// 'images' JSON opcional: reemplazo explícito del array de URLs.
 	if form.Has("images") {
 		var imgs []string
 		if err := json.Unmarshal([]byte(form.Get("images")), &imgs); err != nil {
@@ -333,8 +325,6 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 		}
 		product.Images = imgs
 	}
-
-	// Archivo nuevo opcional: se agrega al array existente sin pisarlo.
 	newImages, err := h.uploadImageIfPresent(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("image inválido: %v", err)})

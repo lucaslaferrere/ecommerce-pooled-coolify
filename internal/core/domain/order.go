@@ -20,6 +20,11 @@ type Order struct {
 	Items           []CartItem         `bson:"items" json:"items"`
 	Total           float64            `bson:"total" json:"total"`
 	Status          string             `bson:"status" json:"status"` // pending | paid | processing | shipped | delivered | cancelled
+	CustomerName    string             `bson:"customer_name" json:"customer_name"`
+	CustomerEmail   string             `bson:"customer_email" json:"customer_email"`
+	CustomerPhone   string             `bson:"customer_phone" json:"customer_phone"`
+	Notes           string             `bson:"notes,omitempty" json:"notes,omitempty"`
+	PaymentMethod   string             `bson:"payment_method,omitempty" json:"payment_method,omitempty"`
 	ShippingDetails ShippingDetails    `bson:"shipping_details" json:"shipping_details"`
 	PreferenceID    string             `bson:"preference_id,omitempty" json:"preference_id,omitempty"` // ID de preferencia Mercado Pago
 	PaymentID       string             `bson:"payment_id,omitempty" json:"payment_id,omitempty"`       // ID de pago confirmado por MP

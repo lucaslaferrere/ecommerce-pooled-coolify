@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -113,6 +114,26 @@ func mustParseBody(t *testing.T, w *httptest.ResponseRecorder, v interface{}) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(v))
 }
 
+// doMultipart sends a multipart/form-data request. fields are plain text values.
+func (s *suite) doMultipart(t *testing.T, method, path string, fields map[string]string, token string) *httptest.ResponseRecorder {
+	t.Helper()
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	for k, v := range fields {
+		require.NoError(t, writer.WriteField(k, v))
+	}
+	require.NoError(t, writer.Close())
+
+	req := httptest.NewRequest(method, path, body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	w := httptest.NewRecorder()
+	s.router.ServeHTTP(w, req)
+	return w
+}
+
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 
 type credentials struct {
@@ -164,22 +185,19 @@ func TestAdminProductCRUD(t *testing.T) {
 		Role:     "admin",
 	})
 
-	// 2. Create a product
+	// 2. Create a product (handler expects multipart/form-data)
 	t.Run("create product", func(t *testing.T) {
-		payload := map[string]interface{}{
+		variantsJSON := `[{"sku":"RX1-BLK-42","color":"Negro","size":"42","stock":10,"price_adjustment":0},{"sku":"RX1-WHT-42","color":"Blanco","size":"42","stock":5,"price_adjustment":10}]`
+		fields := map[string]string{
 			"name":        "Zapatilla Runner X1",
 			"description": "Zapatilla de running de alta performance",
-			"base_price":  150.00,
+			"base_price":  "150.00",
 			"category":    "calzado",
 			"brand":       "RunPro",
-			"images":      []string{"https://cdn.example.com/img1.jpg"},
-			"variants": []map[string]interface{}{
-				{"sku": "RX1-BLK-42", "color": "Negro", "size": "42", "stock": 10, "price_adjustment": 0},
-				{"sku": "RX1-WHT-42", "color": "Blanco", "size": "42", "stock": 5, "price_adjustment": 10},
-			},
+			"variants":    variantsJSON,
 		}
 
-		w := s.do(t, http.MethodPost, "/api/v1/admin/products", payload, adminToken)
+		w := s.doMultipart(t, http.MethodPost, "/api/v1/admin/products", fields, adminToken)
 		assert.Equal(t, http.StatusCreated, w.Code, w.Body.String())
 
 		var created map[string]interface{}
@@ -189,12 +207,10 @@ func TestAdminProductCRUD(t *testing.T) {
 
 		productID := created["id"].(string)
 
-		// 3. Update the product price
+		// 3. Update the product price (also multipart/form-data)
 		t.Run("update price", func(t *testing.T) {
-			update := map[string]interface{}{
-				"base_price": 175.00,
-			}
-			w := s.do(t, http.MethodPut, "/api/v1/admin/products/"+productID, update, adminToken)
+			w := s.doMultipart(t, http.MethodPut, "/api/v1/admin/products/"+productID,
+				map[string]string{"base_price": "175.00"}, adminToken)
 			assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
 			var updated map[string]interface{}
@@ -232,7 +248,7 @@ func TestAdminProductCRUD(t *testing.T) {
 			var resp map[string]interface{}
 			mustParseBody(t, w, &resp)
 
-			products := resp["products"].([]interface{})
+			products, _ := resp["products"].([]interface{}) // nil when empty (JSON null)
 			assert.Len(t, products, 0, "catalog should be empty after deletion")
 		})
 	})
@@ -255,25 +271,14 @@ func TestClientCheckoutFlow(t *testing.T) {
 		Role:     "admin",
 	})
 
-	createPayload := map[string]interface{}{
+	w := s.doMultipart(t, http.MethodPost, "/api/v1/admin/products", map[string]string{
 		"name":        "Remera Básica",
 		"description": "100% algodón",
-		"base_price":  25.00,
+		"base_price":  "25.00",
 		"category":    "ropa",
 		"brand":       "BasicCo",
-		"images":      []string{},
-		"variants": []map[string]interface{}{
-			{
-				"sku":              "REM-WHT-M",
-				"color":            "Blanco",
-				"size":             "M",
-				"stock":            10,
-				"price_adjustment": 0,
-			},
-		},
-	}
-
-	w := s.do(t, http.MethodPost, "/api/v1/admin/products", createPayload, adminToken)
+		"variants":    `[{"sku":"REM-WHT-M","color":"Blanco","size":"M","stock":10,"price_adjustment":0}]`,
+	}, adminToken)
 	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
 
 	var createdProduct map[string]interface{}
@@ -297,11 +302,12 @@ func TestClientCheckoutFlow(t *testing.T) {
 					"quantity":    3,
 				},
 			},
-			"shipping_details": map[string]string{
-				"address":     "Av. Corrientes 1234",
-				"city":        "Buenos Aires",
-				"postal_code": "C1043",
-			},
+			"customer_name":    "Juan Pérez",
+			"customer_email":   "juan@test.com",
+			"customer_phone":   "1112345678",
+			"shipping_address": "Av. Corrientes 1234",
+			"shipping_city":    "Buenos Aires",
+			"shipping_zip":     "C1043",
 		}
 
 		w := s.do(t, http.MethodPost, "/api/v1/checkout", checkoutPayload, clientToken)
@@ -384,14 +390,15 @@ func TestClientCheckoutFlow(t *testing.T) {
 				{
 					"product_id":  productID,
 					"variant_sku": "REM-WHT-M",
-					"quantity":    999, // way more than remaining stock
+					"quantity":    999,
 				},
 			},
-			"shipping_details": map[string]string{
-				"address":     "Calle Falsa 123",
-				"city":        "Córdoba",
-				"postal_code": "5000",
-			},
+			"customer_name":    "Ana García",
+			"customer_email":   "ana@test.com",
+			"customer_phone":   "1198765432",
+			"shipping_address": "Calle Falsa 123",
+			"shipping_city":    "Córdoba",
+			"shipping_zip":     "5000",
 		}
 
 		w := s.do(t, http.MethodPost, "/api/v1/checkout", checkoutPayload, clientToken)
@@ -409,9 +416,12 @@ func TestClientCheckoutFlow(t *testing.T) {
 			"items": []map[string]interface{}{
 				{"product_id": productID, "variant_sku": "REM-WHT-M", "quantity": 1},
 			},
-			"shipping_details": map[string]string{
-				"address": "Test 1", "city": "CABA", "postal_code": "1000",
-			},
+			"customer_name":    "Test User",
+			"customer_email":   "test@test.com",
+			"customer_phone":   "1100000000",
+			"shipping_address": "Test 1",
+			"shipping_city":    "CABA",
+			"shipping_zip":     "1000",
 		}
 		w := s.do(t, http.MethodPost, "/api/v1/checkout", payload, clientToken)
 		require.Equal(t, http.StatusCreated, w.Code, w.Body.String())

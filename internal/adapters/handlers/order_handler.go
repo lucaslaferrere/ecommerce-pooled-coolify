@@ -33,10 +33,16 @@ func NewOrderHandler(
 }
 
 // checkoutRequest es el payload que envía el frontend al hacer checkout.
-// Los items vienen del localStorage del carrito anónimo/autenticado.
 type checkoutRequest struct {
-	Items           []domain.CartItem      `json:"items" binding:"required,min=1"`
-	ShippingDetails domain.ShippingDetails `json:"shipping_details" binding:"required"`
+	Items           []domain.CartItem `json:"items" binding:"required,min=1"`
+	CustomerName    string            `json:"customer_name" binding:"required"`
+	CustomerEmail   string            `json:"customer_email" binding:"required,email"`
+	CustomerPhone   string            `json:"customer_phone" binding:"required"`
+	ShippingAddress string            `json:"shipping_address" binding:"required"`
+	ShippingCity    string            `json:"shipping_city" binding:"required"`
+	ShippingZip     string            `json:"shipping_zip" binding:"required"`
+	Notes           string            `json:"notes"`
+	PaymentMethod   string            `json:"payment_method"`
 }
 
 // Checkout maneja POST /api/v1/checkout
@@ -59,10 +65,10 @@ func (h *OrderHandler) Checkout(c *gin.Context) {
 		return
 	}
 
-	sd := req.ShippingDetails
-	if sd.Address == "" || sd.City == "" || sd.PostalCode == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "shipping_details requiere address, city y postal_code"})
-		return
+	sd := domain.ShippingDetails{
+		Address:    req.ShippingAddress,
+		City:       req.ShippingCity,
+		PostalCode: req.ShippingZip,
 	}
 
 	// Paso 1: validar carrito y calcular precios
@@ -73,7 +79,7 @@ func (h *OrderHandler) Checkout(c *gin.Context) {
 	}
 
 	// Paso 2: descontar stock y persistir la orden (estado: "pending")
-	order, err := h.orderService.Checkout(c.Request.Context(), userID, cart.Items, req.ShippingDetails)
+	order, err := h.orderService.Checkout(c.Request.Context(), userID, cart.Items, sd, req.CustomerName, req.CustomerEmail, req.CustomerPhone, req.Notes, req.PaymentMethod)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return

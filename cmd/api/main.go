@@ -15,6 +15,8 @@ import (
 	"ecommerce-pooled/internal/app"
 	"ecommerce-pooled/internal/config"
 
+	"github.com/joho/godotenv"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -24,6 +26,7 @@ import (
 
 func main() {
 	// ── Configuración ────────────────────────────────────────────────────────
+	_ = godotenv.Load() // carga .env si existe; en producción las vars vienen del entorno
 	cfg := config.Load()
 	gin.SetMode(cfg.GinMode)
 

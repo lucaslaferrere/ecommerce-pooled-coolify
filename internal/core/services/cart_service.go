@@ -47,21 +47,27 @@ func (s *CartService) ValidateCart(ctx context.Context, items []domain.CartItem)
 			return nil, ErrProductNotFound
 		}
 
-		var found *domain.Variant
-		for j := range product.Variants {
-			if product.Variants[j].SKU == item.VariantSKU {
-				found = &product.Variants[j]
-				break
+		var unitPrice float64
+		if item.VariantSKU == "" || len(product.Variants) == 0 {
+			// Producto sin variante: usa base_price directamente
+			unitPrice = product.BasePrice
+		} else {
+			var found *domain.Variant
+			for j := range product.Variants {
+				if product.Variants[j].SKU == item.VariantSKU {
+					found = &product.Variants[j]
+					break
+				}
 			}
-		}
-		if found == nil {
-			return nil, errors.New("variante no encontrada: " + item.VariantSKU)
-		}
-		if found.Stock < item.Quantity {
-			return nil, ErrInsufficientStock
+			if found == nil {
+				return nil, errors.New("variante no encontrada: " + item.VariantSKU)
+			}
+			if found.Stock < item.Quantity {
+				return nil, ErrInsufficientStock
+			}
+			unitPrice = product.BasePrice + found.PriceAdjustment
 		}
 
-		unitPrice := product.BasePrice + found.PriceAdjustment
 		validated[i] = domain.CartItem{
 			ProductID:  item.ProductID,
 			VariantSKU: item.VariantSKU,

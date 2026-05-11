@@ -179,7 +179,7 @@ func (s *OrderService) ConfirmPayment(ctx context.Context, orderID primitive.Obj
 
 // Checkout descuenta stock atómicamente y crea la orden. Recibe ítems ya validados
 // (con UnitPrice calculado) provenientes de CartService.ValidateCart.
-func (s *OrderService) Checkout(ctx context.Context, userID primitive.ObjectID, items []domain.CartItem, shipping domain.ShippingDetails) (*domain.Order, error) {
+func (s *OrderService) Checkout(ctx context.Context, userID primitive.ObjectID, items []domain.CartItem, shipping domain.ShippingDetails, customerName, customerEmail, customerPhone, notes, paymentMethod string) (*domain.Order, error) {
 	if userID.IsZero() {
 		return nil, errors.New("ID de usuario requerido")
 	}
@@ -216,6 +216,11 @@ func (s *OrderService) Checkout(ctx context.Context, userID primitive.ObjectID, 
 		Items:           items,
 		Total:           total,
 		Status:          "pending",
+		CustomerName:    customerName,
+		CustomerEmail:   customerEmail,
+		CustomerPhone:   customerPhone,
+		Notes:           notes,
+		PaymentMethod:   paymentMethod,
 		ShippingDetails: shipping,
 		CreatedAt:       now,
 		UpdatedAt:       now,
