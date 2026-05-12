@@ -33,10 +33,6 @@ func (s *ProductService) CreateProduct(ctx context.Context, product *domain.Prod
 		return errors.New("precio base debe ser mayor a 0")
 	}
 
-	if len(product.Variants) == 0 {
-		return errors.New("un producto debe tener al menos una variante")
-	}
-
 	return s.productRepository.Create(ctx, product)
 }
 
