@@ -89,10 +89,18 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		return
 	}
 
+	stock := 0
+	if stockStr := c.PostForm("stock"); stockStr != "" {
+		if s, err2 := strconv.Atoi(stockStr); err2 == nil && s >= 0 {
+			stock = s
+		}
+	}
+
 	product := &domain.Product{
 		Name:        name,
 		Description: description,
 		BasePrice:   basePrice,
+		Stock:       stock,
 		Category:    category,
 		Brand:       brand,
 		Images:      images,
