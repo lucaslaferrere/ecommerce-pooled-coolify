@@ -70,16 +70,17 @@ func (r *ProductRepositoryMongo) Update(ctx context.Context, product *domain.Pro
 	filter := bson.M{"_id": product.ID}
 	update := bson.M{
 		"$set": bson.M{
-			"name":        product.Name,
-			"description": product.Description,
-			"base_price":  product.BasePrice,
-			"stock":       product.Stock,
-			"category":    product.Category,
-			"brand":       product.Brand,
-			"images":      product.Images,
-			"variants":    product.Variants,
-			"specs":       product.Specs,
-			"updated_at":  product.UpdatedAt,
+			"name":             product.Name,
+			"description":      product.Description,
+			"base_price":       product.BasePrice,
+			"discount_percent": product.DiscountPercent,
+			"stock":            product.Stock,
+			"category":         product.Category,
+			"brand":            product.Brand,
+			"images":           product.Images,
+			"variants":         product.Variants,
+			"specs":            product.Specs,
+			"updated_at":       product.UpdatedAt,
 		},
 	}
 

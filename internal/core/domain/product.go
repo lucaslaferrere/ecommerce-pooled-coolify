@@ -36,19 +36,20 @@ type Benefit struct {
 
 // Product representa la entidad de producto en la aplicación
 type Product struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
-	Name        string             `bson:"name" json:"name"`
-	Subtitle    string             `bson:"subtitle,omitempty" json:"subtitle,omitempty"`
-	Description string             `bson:"description" json:"description"`
-	BasePrice   float64            `bson:"base_price" json:"base_price"`
-	Stock       int                `bson:"stock" json:"stock"`
-	Category    string             `bson:"category" json:"category"`
-	Brand       string             `bson:"brand" json:"brand"`
-	Images      []string           `bson:"images" json:"images"`
-	Variants    []Variant          `bson:"variants" json:"variants"`
-	Specs       []Spec             `bson:"specs" json:"specs"`
-	MainSpecs   []MainSpec         `bson:"main_specs,omitempty" json:"main_specs,omitempty"`
-	Benefits    []Benefit          `bson:"benefits,omitempty" json:"benefits,omitempty"`
-	CreatedAt   time.Time          `bson:"created_at" json:"created_at,omitempty"`
-	UpdatedAt   time.Time          `bson:"updated_at" json:"updated_at,omitempty"`
+	ID              primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
+	Name            string             `bson:"name" json:"name"`
+	Subtitle        string             `bson:"subtitle,omitempty" json:"subtitle,omitempty"`
+	Description     string             `bson:"description" json:"description"`
+	BasePrice       float64            `bson:"base_price" json:"base_price"`
+	DiscountPercent float64            `bson:"discount_percent" json:"discount_percent"`
+	Stock           int                `bson:"stock" json:"stock"`
+	Category        string             `bson:"category" json:"category"`
+	Brand           string             `bson:"brand" json:"brand"`
+	Images          []string           `bson:"images" json:"images"`
+	Variants        []Variant          `bson:"variants" json:"variants"`
+	Specs           []Spec             `bson:"specs" json:"specs"`
+	MainSpecs       []MainSpec         `bson:"main_specs,omitempty" json:"main_specs,omitempty"`
+	Benefits        []Benefit          `bson:"benefits,omitempty" json:"benefits,omitempty"`
+	CreatedAt       time.Time          `bson:"created_at" json:"created_at,omitempty"`
+	UpdatedAt       time.Time          `bson:"updated_at" json:"updated_at,omitempty"`
 }

@@ -89,25 +89,31 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		return
 	}
 
-	stock := 0
-	if stockStr := c.PostForm("stock"); stockStr != "" {
-		if s, err2 := strconv.Atoi(stockStr); err2 == nil && s >= 0 {
-			stock = s
-		}
+	stock, err := parseStockForm(c.PostForm("stock"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("stock inválido: %v", err)})
+		return
+	}
+
+	discountPercent, err := parseDiscountPercentForm(c.PostForm("discount_percent"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("discount_percent inválido: %v", err)})
+		return
 	}
 
 	product := &domain.Product{
-		Name:        name,
-		Description: description,
-		BasePrice:   basePrice,
-		Stock:       stock,
-		Category:    category,
-		Brand:       brand,
-		Images:      images,
-		Variants:    variants,
-		Specs:       specs,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		Name:            name,
+		Description:     description,
+		BasePrice:       basePrice,
+		DiscountPercent: discountPercent,
+		Stock:           stock,
+		Category:        category,
+		Brand:           brand,
+		Images:          images,
+		Variants:        variants,
+		Specs:           specs,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
 	}
 
 	if err := h.productService.CreateProduct(c.Request.Context(), product); err != nil {
@@ -142,6 +148,39 @@ func parseSpecsForm(raw string) ([]domain.Spec, error) {
 		return nil, err
 	}
 	return specs, nil
+}
+
+// parseStockForm convierte el valor textual del formulario en entero >= 0.
+// Acepta enteros y floats (el frontend normaliza "12,5" → "12.5"); el float se trunca.
+// Cadena vacía → 0 sin error (campo opcional).
+func parseStockForm(raw string) (int, error) {
+	if raw == "" {
+		return 0, nil
+	}
+	f, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0, fmt.Errorf("debe ser un número: %v", err)
+	}
+	if f < 0 {
+		return 0, errors.New("debe ser >= 0")
+	}
+	return int(f), nil
+}
+
+// parseDiscountPercentForm parsea el campo 'discount_percent' como número en [0, 100].
+// Cadena vacía → 0 sin error (campo opcional).
+func parseDiscountPercentForm(raw string) (float64, error) {
+	if raw == "" {
+		return 0, nil
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0, fmt.Errorf("debe ser un número: %v", err)
+	}
+	if v < 0 || v > 100 {
+		return 0, errors.New("debe estar entre 0 y 100")
+	}
+	return v, nil
 }
 
 // uploadImageIfPresent sube el archivo 'image' del formulario si existe.
@@ -310,12 +349,20 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 		product.BasePrice = basePrice
 	}
 	if form.Has("stock") {
-		stock, err := strconv.Atoi(form.Get("stock"))
-		if err != nil || stock < 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "stock inválido: debe ser un entero >= 0"})
+		stock, err := parseStockForm(form.Get("stock"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("stock inválido: %v", err)})
 			return
 		}
 		product.Stock = stock
+	}
+	if form.Has("discount_percent") {
+		discount, err := parseDiscountPercentForm(form.Get("discount_percent"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("discount_percent inválido: %v", err)})
+			return
+		}
+		product.DiscountPercent = discount
 	}
 	if form.Has("variants") {
 		variants, err := parseVariantsForm(form.Get("variants"))

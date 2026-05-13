@@ -15,7 +15,8 @@
       "PowerShell(Get-NetTCPConnection *)",
       "Bash(curl *)",
       "PowerShell(Start-Process \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\"; Write-Output \"Docker Desktop launched\")",
-      "Bash(docker info *)"
+      "Bash(docker info *)",
+      "Bash(go vet *)"
     ]
   }
 }

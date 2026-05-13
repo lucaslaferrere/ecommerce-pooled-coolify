@@ -5,11 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="01f1b90c-b239-49d4-befc-de0e2cb50155" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.claude/settings.local.json" beforeDir="false" afterPath="$PROJECT_DIR$/.claude/settings.local.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/adapters/handlers/product_handler.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/adapters/handlers/product_handler.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/adapters/repositories/product_repository_mongo.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/adapters/repositories/product_repository_mongo.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/core/domain/product.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/core/domain/product.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -20,12 +17,25 @@
   <component name="CopilotPersistence">
     <persistenceIdMap>
       <entry key="_E:/LyRSolutions/ecommerce-pooled" value="3CRvnDgWBfkJF3hF15raF6BTEhw" />
+      <entry key="_E:/LyRSolutions/ecommerce-pooled-coolify" value="3De7i0y3CXD9C3e7yIhYKBpoyZQ" />
     </persistenceIdMap>
   </component>
   <component name="GOROOT" url="file://C:/Program Files/Go" />
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "beluromeo"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/lucaslaferrere/ecommerce-pooled-coolify.git",
+    "accountId": "f4ef5fd3-7f5a-4f5d-ba0b-0bc1f80cce54"
+  }
+}]]></component>
   <component name="HttpClientOnboardingState">{
   &quot;isOnboardingCommentShown&quot;: true
 }</component>
@@ -64,7 +74,7 @@
     "git-widget-placeholder": "v2",
     "go.sdk.automatically.set": "true",
     "ignore.virus.scanning.warn.message": "true",
-    "last_opened_file_path": "E:/LyRSolutions/ecommerce-pooled/cmd/api",
+    "last_opened_file_path": "E:/LyRSolutions/ecommerce-pooled-coolify",
     "node.js.detected.package.eslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
     "nodejs_package_manager_path": "npm"
