@@ -83,7 +83,13 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		return
 	}
 
-	images, err := h.uploadImageIfPresent(c)
+	mainSpecs, err := parseMainSpecsForm(c.PostForm("main_specs"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("main_specs inválido: %v", err)})
+		return
+	}
+
+	images, err := h.uploadImagesIfPresent(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("image inválido: %v", err)})
 		return
@@ -112,6 +118,7 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		Images:          images,
 		Variants:        variants,
 		Specs:           specs,
+		MainSpecs:       mainSpecs,
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}
@@ -150,6 +157,18 @@ func parseSpecsForm(raw string) ([]domain.Spec, error) {
 	return specs, nil
 }
 
+// parseMainSpecsForm decodifica el JSON stringificado del campo 'main_specs'.
+func parseMainSpecsForm(raw string) ([]domain.MainSpec, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	var ms []domain.MainSpec
+	if err := json.Unmarshal([]byte(raw), &ms); err != nil {
+		return nil, err
+	}
+	return ms, nil
+}
+
 // parseStockForm convierte el valor textual del formulario en entero >= 0.
 // Acepta enteros y floats (el frontend normaliza "12,5" → "12.5"); el float se trunca.
 // Cadena vacía → 0 sin error (campo opcional).
@@ -183,21 +202,25 @@ func parseDiscountPercentForm(raw string) (float64, error) {
 	return v, nil
 }
 
-// uploadImageIfPresent sube el archivo 'image' del formulario si existe.
-// Devuelve slice nil sin error cuando no se adjuntó archivo (http.ErrMissingFile).
-func (h *ProductHandler) uploadImageIfPresent(c *gin.Context) ([]string, error) {
-	file, err := c.FormFile("image")
-	if err != nil {
-		if errors.Is(err, http.ErrMissingFile) {
-			return nil, nil
+// uploadImagesIfPresent sube todos los archivos con key "image" del formulario.
+// Devuelve slice nil sin error cuando no se adjuntó ningún archivo.
+func (h *ProductHandler) uploadImagesIfPresent(c *gin.Context) ([]string, error) {
+	if c.Request.MultipartForm == nil {
+		return nil, nil
+	}
+	files := c.Request.MultipartForm.File["image"]
+	if len(files) == 0 {
+		return nil, nil
+	}
+	var urls []string
+	for _, fh := range files {
+		url, err := h.imageStorage.UploadImage(c.Request.Context(), fh)
+		if err != nil {
+			return nil, err
 		}
-		return nil, err
+		urls = append(urls, url)
 	}
-	savedURL, err := h.imageStorage.UploadImage(c.Request.Context(), file)
-	if err != nil {
-		return nil, err
-	}
-	return []string{savedURL}, nil
+	return urls, nil
 }
 
 // GetProduct maneja GET /api/products/:id (público)
@@ -380,6 +403,14 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 		}
 		product.Specs = specs
 	}
+	if form.Has("main_specs") {
+		ms, err := parseMainSpecsForm(form.Get("main_specs"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("main_specs inválido: %v", err)})
+			return
+		}
+		product.MainSpecs = ms
+	}
 	if form.Has("images") {
 		var imgs []string
 		if err := json.Unmarshal([]byte(form.Get("images")), &imgs); err != nil {
@@ -388,7 +419,7 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 		}
 		product.Images = imgs
 	}
-	newImages, err := h.uploadImageIfPresent(c)
+	newImages, err := h.uploadImagesIfPresent(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("image inválido: %v", err)})
 		return

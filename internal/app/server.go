@@ -56,7 +56,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	authHandler := handlers.NewAuthHandler(authService)
 	userHandler := handlers.NewUserHandler(userService)
 	productHandler := handlers.NewProductHandler(productService, imageStorage)
-	kitHandler             := handlers.NewKitHandler(kitService)
+	kitHandler             := handlers.NewKitHandler(kitService, imageStorage)
 	orderHandler           := handlers.NewOrderHandler(orderService, cartService, paymentService)
 	webhookHandler         := handlers.NewWebhookHandler(paymentService, orderService, cfg.MPWebhookSecret)
 	distributorLeadHandler := handlers.NewDistributorLeadHandler(distributorLeadService)
@@ -130,7 +130,9 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		admin.PATCH("/products/:id/variants/:sku/stock", productHandler.UpdateVariantStock)
 		admin.DELETE("/products/:id", productHandler.DeleteProduct)
 
+		admin.GET("/kits", kitHandler.ListKits)
 		admin.POST("/kits", kitHandler.CreateKit)
+		admin.PUT("/kits/:id", kitHandler.UpdateKit)
 		admin.DELETE("/kits/:id", kitHandler.DeleteKit)
 
 		admin.GET("/orders", orderHandler.ListAllOrders)

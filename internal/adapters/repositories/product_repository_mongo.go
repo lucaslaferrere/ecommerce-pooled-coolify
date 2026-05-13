@@ -80,6 +80,7 @@ func (r *ProductRepositoryMongo) Update(ctx context.Context, product *domain.Pro
 			"images":           product.Images,
 			"variants":         product.Variants,
 			"specs":            product.Specs,
+			"main_specs":       product.MainSpecs,
 			"updated_at":       product.UpdatedAt,
 		},
 	}
