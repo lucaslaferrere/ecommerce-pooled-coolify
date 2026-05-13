@@ -3,7 +3,9 @@ package services
 import (
 	"context"
 	"fmt"
+	"io"
 	"mime/multipart"
+	"os"
 	"path/filepath"
 	"time"
 )
@@ -116,46 +118,50 @@ func NewLocalImageStorage(uploadDir string, baseURL string) *LocalImageStorage {
 	}
 }
 
-// UploadImage carga una imagen localmente
+// UploadImage guarda el archivo en uploadDir y retorna la URL pública.
 func (l *LocalImageStorage) UploadImage(ctx context.Context, file *multipart.FileHeader) (string, error) {
 	if file == nil {
 		return "", fmt.Errorf("archivo no puede ser nil")
 	}
 
-	// Validar tamaño (máximo 10MB)
-	maxSize := int64(10 * 1024 * 1024) // 10MB
+	maxSize := int64(10 * 1024 * 1024)
 	if file.Size > maxSize {
 		return "", fmt.Errorf("archivo demasiado grande (máximo 10MB)")
 	}
 
-	// Validar extensión
 	ext := filepath.Ext(file.Filename)
 	allowedExtensions := map[string]bool{
-		".jpg":  true,
-		".jpeg": true,
-		".png":  true,
-		".gif":  true,
-		".webp": true,
+		".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true,
 	}
-
 	if !allowedExtensions[ext] {
 		return "", fmt.Errorf("tipo de archivo no permitido: %s", ext)
 	}
 
-	// STUB: Simular la carga local
-	timestamp := time.Now().Unix()
+	timestamp := time.Now().UnixNano()
 	filename := fmt.Sprintf("products/%d%s", timestamp, ext)
+	destPath := filepath.Join(l.uploadDir, filename)
 
-	// Generar URL
-	imageURL := l.GenerateImageURL(filename)
+	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+		return "", fmt.Errorf("error creando directorio: %v", err)
+	}
 
-	// TODO: En producción real, guardaría el archivo aquí
-	// err := l.saveFile(uploadDir, filename, file)
-	// if err != nil {
-	//     return "", err
-	// }
+	src, err := file.Open()
+	if err != nil {
+		return "", fmt.Errorf("error abriendo archivo: %v", err)
+	}
+	defer src.Close()
 
-	return imageURL, nil
+	dst, err := os.Create(destPath)
+	if err != nil {
+		return "", fmt.Errorf("error creando archivo: %v", err)
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, src); err != nil {
+		return "", fmt.Errorf("error guardando archivo: %v", err)
+	}
+
+	return l.GenerateImageURL(filename), nil
 }
 
 // DeleteImage elimina una imagen local
