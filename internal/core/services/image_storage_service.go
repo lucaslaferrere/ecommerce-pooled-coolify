@@ -177,12 +177,8 @@ func (l *LocalImageStorage) DeleteImage(ctx context.Context, imageURL string) er
 	return nil
 }
 
-// GenerateImageURL genera una URL simulada para una imagen local
+// GenerateImageURL retorna la ruta relativa al servidor.
+// El frontend es responsable de anteponer el origen de la API.
 func (l *LocalImageStorage) GenerateImageURL(filename string) string {
-	if l.baseURL != "" {
-		return fmt.Sprintf("%s/%s", l.baseURL, filename)
-	}
-
-	// URL por defecto para desarrollo local
-	return fmt.Sprintf("/uploads/%s", filename)
+	return "/uploads/" + filename
 }
