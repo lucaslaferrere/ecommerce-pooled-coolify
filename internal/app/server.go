@@ -131,9 +131,10 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		admin.PATCH("/products/:id/variants/:sku/stock", productHandler.UpdateVariantStock)
 		admin.DELETE("/products/:id", productHandler.DeleteProduct)
 
-		admin.GET("/kits", kitHandler.ListKits)
+		admin.GET("/kits", kitHandler.ListAllKits)
 		admin.POST("/kits", kitHandler.CreateKit)
 		admin.PUT("/kits/:id", kitHandler.UpdateKit)
+		admin.PATCH("/kits/:id/visibility", kitHandler.SetKitVisibility)
 		admin.DELETE("/kits/:id", kitHandler.DeleteKit)
 
 		admin.GET("/orders", orderHandler.ListAllOrders)

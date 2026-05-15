@@ -59,9 +59,28 @@ func (r *KitRepositoryMongo) List(ctx context.Context, skip int64, limit int64) 
 	return kits, nil
 }
 
+func (r *KitRepositoryMongo) ListVisible(ctx context.Context, skip int64, limit int64) ([]*domain.Kit, error) {
+	opts := options.Find().
+		SetSkip(skip).
+		SetLimit(limit).
+		SetSort(bson.M{"created_at": -1})
+	filter := bson.M{"visible": bson.M{"$ne": false}}
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var kits []*domain.Kit
+	if err = cursor.All(ctx, &kits); err != nil {
+		return nil, err
+	}
+	return kits, nil
+}
+
 func (r *KitRepositoryMongo) ListFeatured(ctx context.Context) ([]*domain.Kit, error) {
 	opts := options.Find().SetSort(bson.M{"created_at": -1})
-	cursor, err := r.collection.Find(ctx, bson.M{"featured": true}, opts)
+	cursor, err := r.collection.Find(ctx, bson.M{"featured": true, "visible": bson.M{"$ne": false}}, opts)
 	if err != nil {
 		return nil, err
 	}

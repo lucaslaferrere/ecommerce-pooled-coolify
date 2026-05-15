@@ -46,6 +46,13 @@ func (s *KitService) ListKits(ctx context.Context, skip int64, limit int64) ([]*
 	return s.kitRepository.List(ctx, skip, limit)
 }
 
+func (s *KitService) ListVisibleKits(ctx context.Context, skip int64, limit int64) ([]*domain.Kit, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	return s.kitRepository.ListVisible(ctx, skip, limit)
+}
+
 func (s *KitService) ListFeaturedKits(ctx context.Context) ([]*domain.Kit, error) {
 	return s.kitRepository.ListFeatured(ctx)
 }

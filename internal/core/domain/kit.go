@@ -17,6 +17,7 @@ type Kit struct {
 	PoolSize      string             `bson:"pool_size" json:"pool_size"`
 	ProductIDs    []string           `bson:"product_ids" json:"product_ids"`
 	Featured      bool               `bson:"featured" json:"featured"`
+	Visible       *bool              `bson:"visible,omitempty" json:"visible,omitempty"`
 	CreatedAt     time.Time          `bson:"created_at" json:"created_at,omitempty"`
 	UpdatedAt     time.Time          `bson:"updated_at" json:"updated_at,omitempty"`
 }

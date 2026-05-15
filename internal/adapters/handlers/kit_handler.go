@@ -23,7 +23,7 @@ func NewKitHandler(kitService *services.KitService, imageStorage services.ImageS
 	return &KitHandler{kitService: kitService, imageStorage: imageStorage}
 }
 
-// ListKits maneja GET /api/v1/kits
+// ListKits maneja GET /api/v1/kits (público — solo kits visibles)
 func (h *KitHandler) ListKits(c *gin.Context) {
 	skip, _ := strconv.ParseInt(c.DefaultQuery("skip", "0"), 10, 64)
 	limit, _ := strconv.ParseInt(c.DefaultQuery("limit", "20"), 10, 64)
@@ -37,6 +37,19 @@ func (h *KitHandler) ListKits(c *gin.Context) {
 		c.JSON(http.StatusOK, kits)
 		return
 	}
+
+	kits, err := h.kitService.ListVisibleKits(c.Request.Context(), skip, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, kits)
+}
+
+// ListAllKits maneja GET /api/v1/admin/kits (admin — todos los kits, incluidos ocultos)
+func (h *KitHandler) ListAllKits(c *gin.Context) {
+	skip, _ := strconv.ParseInt(c.DefaultQuery("skip", "0"), 10, 64)
+	limit, _ := strconv.ParseInt(c.DefaultQuery("limit", "20"), 10, 64)
 
 	kits, err := h.kitService.ListKits(c.Request.Context(), skip, limit)
 	if err != nil {
@@ -111,6 +124,7 @@ func (h *KitHandler) CreateKit(c *gin.Context) {
 		return
 	}
 
+	visibleTrue := true
 	kit := &domain.Kit{
 		Name:          name,
 		Slug:          slug,
@@ -121,6 +135,7 @@ func (h *KitHandler) CreateKit(c *gin.Context) {
 		PoolSize:      c.PostForm("pool_size"),
 		ProductIDs:    productIDs,
 		Featured:      featured,
+		Visible:       &visibleTrue,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}
@@ -216,6 +231,39 @@ func (h *KitHandler) UpdateKit(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	c.JSON(http.StatusOK, kit)
+}
+
+// SetKitVisibility maneja PATCH /api/v1/admin/kits/:id/visibility (solo admin)
+func (h *KitHandler) SetKitVisibility(c *gin.Context) {
+	id, err := primitive.ObjectIDFromHex(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+		return
+	}
+
+	var req struct {
+		Visible bool `json:"visible"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	kit, err := h.kitService.GetKit(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	kit.Visible = &req.Visible
+	kit.UpdatedAt = time.Now()
+
+	if err := h.kitService.UpdateKit(c.Request.Context(), kit); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusOK, kit)
 }
 
