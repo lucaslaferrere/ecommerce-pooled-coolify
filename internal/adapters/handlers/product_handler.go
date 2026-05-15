@@ -107,6 +107,7 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		return
 	}
 
+	visibleTrue := true
 	product := &domain.Product{
 		Name:            name,
 		Description:     description,
@@ -119,6 +120,7 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		Variants:        variants,
 		Specs:           specs,
 		MainSpecs:       mainSpecs,
+		Visible:         &visibleTrue,
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}
@@ -260,7 +262,11 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 	skip, _ := strconv.ParseInt(c.DefaultQuery("skip", "0"), 10, 64)
 	limit, _ := strconv.ParseInt(c.DefaultQuery("limit", "10"), 10, 64)
 
-	products, err := h.productService.ListProducts(c.Request.Context(), map[string]interface{}{}, skip, limit)
+	// Exclude products explicitly hidden (visible=false). Missing/nil/true → visible.
+	visibilityFilter := map[string]interface{}{
+		"visible": map[string]interface{}{"$ne": false},
+	}
+	products, err := h.productService.ListProducts(c.Request.Context(), visibilityFilter, skip, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -485,6 +491,40 @@ func (h *ProductHandler) DeleteProduct(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "producto eliminado"})
+}
+
+// SetVisibility maneja PATCH /admin/products/:id/visibility (solo admin)
+func (h *ProductHandler) SetVisibility(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+		return
+	}
+
+	var req struct {
+		Visible bool `json:"visible"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	product, err := h.productService.GetProduct(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	product.Visible = &req.Visible
+	product.UpdatedAt = time.Now()
+
+	if err := h.productService.UpdateProduct(c.Request.Context(), product); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, product)
 }
 
 // RegisterRoutes registra las rutas de producto

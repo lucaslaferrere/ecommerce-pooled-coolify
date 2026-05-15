@@ -50,6 +50,7 @@ type Product struct {
 	Specs           []Spec             `bson:"specs" json:"specs"`
 	MainSpecs       []MainSpec         `bson:"main_specs,omitempty" json:"main_specs,omitempty"`
 	Benefits        []Benefit          `bson:"benefits,omitempty" json:"benefits,omitempty"`
+	Visible         *bool              `bson:"visible,omitempty" json:"visible,omitempty"`
 	CreatedAt       time.Time          `bson:"created_at" json:"created_at,omitempty"`
 	UpdatedAt       time.Time          `bson:"updated_at" json:"updated_at,omitempty"`
 }
