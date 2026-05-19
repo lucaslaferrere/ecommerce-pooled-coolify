@@ -527,6 +527,40 @@ func (h *ProductHandler) SetVisibility(c *gin.Context) {
 	c.JSON(http.StatusOK, product)
 }
 
+// SetSortOrder maneja PATCH /admin/products/:id/sort-order (solo admin)
+func (h *ProductHandler) SetSortOrder(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+		return
+	}
+
+	var req struct {
+		SortOrder int `json:"sort_order"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	product, err := h.productService.GetProduct(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	product.SortOrder = req.SortOrder
+	product.UpdatedAt = time.Now()
+
+	if err := h.productService.UpdateProduct(c.Request.Context(), product); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, product)
+}
+
 // RegisterRoutes registra las rutas de producto
 // Nota: Las rutas de mutación (POST, PUT, DELETE) deben incluir AdminMiddleware en main.go
 func (h *ProductHandler) RegisterRoutes(router *gin.Engine) {

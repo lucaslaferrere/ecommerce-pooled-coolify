@@ -114,6 +114,12 @@ func (h *KitHandler) CreateKit(c *gin.Context) {
 		return
 	}
 
+	materials, err := parseStringSliceForm(c.PostForm("materials"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "materials inválido: " + err.Error()})
+		return
+	}
+
 	featured := strings.ToLower(c.PostForm("featured")) == "true"
 
 	slug := slugify(name)
@@ -133,6 +139,9 @@ func (h *KitHandler) CreateKit(c *gin.Context) {
 		OriginalPrice: originalPrice,
 		ImageURL:      imageURL,
 		PoolSize:      c.PostForm("pool_size"),
+		Line:          c.PostForm("line"),
+		Materials:     materials,
+		Uso:           c.PostForm("uso"),
 		ProductIDs:    productIDs,
 		Featured:      featured,
 		Visible:       &visibleTrue,
@@ -204,6 +213,20 @@ func (h *KitHandler) UpdateKit(c *gin.Context) {
 	if form.Has("pool_size") {
 		kit.PoolSize = form.Get("pool_size")
 	}
+	if form.Has("line") {
+		kit.Line = form.Get("line")
+	}
+	if form.Has("materials") {
+		mats, err := parseStringSliceForm(form.Get("materials"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "materials inválido"})
+			return
+		}
+		kit.Materials = mats
+	}
+	if form.Has("uso") {
+		kit.Uso = form.Get("uso")
+	}
 	if form.Has("featured") {
 		kit.Featured = strings.ToLower(form.Get("featured")) == "true"
 	}
@@ -267,6 +290,39 @@ func (h *KitHandler) SetKitVisibility(c *gin.Context) {
 	c.JSON(http.StatusOK, kit)
 }
 
+// SetKitSortOrder maneja PATCH /api/v1/admin/kits/:id/sort-order (solo admin)
+func (h *KitHandler) SetKitSortOrder(c *gin.Context) {
+	id, err := primitive.ObjectIDFromHex(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+		return
+	}
+
+	var req struct {
+		SortOrder int `json:"sort_order"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	kit, err := h.kitService.GetKit(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	kit.SortOrder = req.SortOrder
+	kit.UpdatedAt = time.Now()
+
+	if err := h.kitService.UpdateKit(c.Request.Context(), kit); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, kit)
+}
+
 // DeleteKit maneja DELETE /api/v1/admin/kits/:id
 func (h *KitHandler) DeleteKit(c *gin.Context) {
 	id, err := primitive.ObjectIDFromHex(c.Param("id"))
@@ -302,6 +358,17 @@ func parseProductIDsForm(raw string) ([]string, error) {
 		return nil, err
 	}
 	return ids, nil
+}
+
+func parseStringSliceForm(raw string) ([]string, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	var vals []string
+	if err := json.Unmarshal([]byte(raw), &vals); err != nil {
+		return nil, err
+	}
+	return vals, nil
 }
 
 // slugify genera un slug simple a partir del nombre (minúsculas, espacios → guiones).
