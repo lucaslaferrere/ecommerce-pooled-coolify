@@ -79,6 +79,32 @@ func (s *EventService) GetAnalytics(ctx context.Context, period string) (*domain
 	}, nil
 }
 
+func (s *EventService) GetTrafficReport(ctx context.Context) (*domain.TrafficReport, error) {
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	weekAgo := now.AddDate(0, 0, -7)
+	monthAgo := now.AddDate(0, 0, -30)
+
+	viewsToday, _ := s.repo.CountByType(ctx, "page_view", todayStart, now)
+	viewsWeek, _ := s.repo.CountByType(ctx, "page_view", weekAgo, now)
+	viewsMonth, _ := s.repo.CountByType(ctx, "page_view", monthAgo, now)
+	uniqueSessions, _ := s.repo.CountUniqueSessions(ctx, "page_view", monthAgo, now)
+
+	rawPages, _ := s.repo.TopItems(ctx, "page_view", "url", "url", 10, monthAgo, now)
+	pages := make([]domain.PageStat, 0, len(rawPages))
+	for _, p := range rawPages {
+		pages = append(pages, domain.PageStat{URL: p.ID, Count: p.Count})
+	}
+
+	return &domain.TrafficReport{
+		ViewsToday:     viewsToday,
+		ViewsWeek:      viewsWeek,
+		ViewsMonth:     viewsMonth,
+		UniqueSessions: uniqueSessions,
+		TopPages:       pages,
+	}, nil
+}
+
 func periodBounds(period string) (from, to time.Time) {
 	to = time.Now()
 	switch period {

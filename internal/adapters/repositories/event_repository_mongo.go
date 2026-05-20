@@ -92,3 +92,29 @@ func (r *EventRepositoryMongo) TopItems(ctx context.Context, eventType, idField,
 	}
 	return results, nil
 }
+
+func (r *EventRepositoryMongo) CountUniqueSessions(ctx context.Context, eventType string, from, to time.Time) (int64, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{
+			"type":       eventType,
+			"created_at": bson.M{"$gte": from, "$lte": to},
+			"session_id": bson.M{"$ne": ""},
+		}}},
+		{{Key: "$group", Value: bson.M{"_id": "$session_id"}}},
+		{{Key: "$count", Value: "count"}},
+	}
+
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var result []struct {
+		Count int64 `bson:"count"`
+	}
+	if err = cursor.All(ctx, &result); err != nil || len(result) == 0 {
+		return 0, err
+	}
+	return result[0].Count, nil
+}

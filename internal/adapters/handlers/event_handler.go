@@ -39,6 +39,16 @@ func (h *EventHandler) TrackEvent(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"ok": true})
 }
 
+// GetTraffic maneja GET /api/v1/admin/traffic (solo admin)
+func (h *EventHandler) GetTraffic(c *gin.Context) {
+	report, err := h.service.GetTrafficReport(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, report)
+}
+
 // GetAnalytics maneja GET /api/v1/admin/analytics?period=7d (solo admin)
 func (h *EventHandler) GetAnalytics(c *gin.Context) {
 	period := c.DefaultQuery("period", "7d")

@@ -146,6 +146,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		admin.DELETE("/kits/:id", kitHandler.DeleteKit)
 
 		admin.GET("/analytics", eventHandler.GetAnalytics)
+		admin.GET("/traffic", eventHandler.GetTraffic)
 
 		admin.GET("/orders", orderHandler.ListAllOrders)
 		admin.PATCH("/orders/:id/status", orderHandler.UpdateAdminOrderStatus)

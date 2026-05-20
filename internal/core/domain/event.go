@@ -47,3 +47,18 @@ type AnalyticsReport struct {
 	ByDay          []DayCount    `json:"by_day"`
 	TopProducts    []ProductStat `json:"top_products"`
 }
+
+// PageStat representa el conteo de visitas a una URL.
+type PageStat struct {
+	URL   string `json:"url"`
+	Count int64  `json:"count"`
+}
+
+// TrafficReport es la respuesta del endpoint GET /admin/traffic.
+type TrafficReport struct {
+	ViewsToday     int64      `json:"views_today"`
+	ViewsWeek      int64      `json:"views_week"`
+	ViewsMonth     int64      `json:"views_month"`
+	UniqueSessions int64      `json:"unique_sessions"`
+	TopPages       []PageStat `json:"top_pages"`
+}
