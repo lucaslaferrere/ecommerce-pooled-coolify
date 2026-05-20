@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"ecommerce-pooled/internal/core/domain"
 
@@ -33,4 +34,7 @@ type OrderRepository interface {
 
 	// GetByStatus obtiene órdenes filtradas por estado
 	GetByStatus(ctx context.Context, status string, skip int64, limit int64) ([]*domain.Order, error)
+
+	// CountByStatusInPeriod cuenta órdenes con alguno de los estados dados, creadas entre from y to.
+	CountByStatusInPeriod(ctx context.Context, statuses []string, from, to time.Time) (int64, error)
 }

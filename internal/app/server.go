@@ -27,6 +27,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	orderRepo           := repositories.NewOrderRepositoryMongo(db.Collection("orders"))
 	distributorLeadRepo := repositories.NewDistributorLeadRepositoryMongo(db.Collection("distributor_leads"))
 	wizardRepo := repositories.NewWizardRecommendationRepositoryMongo(db.Collection("wizard_recommendations"))
+	eventRepo  := repositories.NewEventRepositoryMongo(db.Collection("events"))
 
 	// ── Services ─────────────────────────────────────────────────────────────
 	authService := services.NewAuthService(userRepo, cfg.JWTSecret)
@@ -37,6 +38,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	orderService           := services.NewOrderService(orderRepo, productRepo)
 	distributorLeadService := services.NewDistributorLeadService(distributorLeadRepo)
 	wizardService := services.NewWizardRecommendationService(wizardRepo)
+	eventService  := services.NewEventService(eventRepo, orderRepo)
 	imageStorage := services.NewLocalImageStorage("./uploads", cfg.AppURL+"/uploads")
 
 	paymentService, err := services.NewPaymentService(
@@ -61,6 +63,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	webhookHandler         := handlers.NewWebhookHandler(paymentService, orderService, cfg.MPWebhookSecret)
 	distributorLeadHandler := handlers.NewDistributorLeadHandler(distributorLeadService)
 	wizardHandler := handlers.NewWizardRecommendationHandler(wizardService)
+	eventHandler  := handlers.NewEventHandler(eventService)
 
 	// ── Router ────────────────────────────────────────────────────────────────
 	router := gin.New()
@@ -102,6 +105,9 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		// Formularios de contacto / analytics
 		public.POST("/distributor-leads", distributorLeadHandler.CreateLead)
 		public.POST("/wizard-recommendations", wizardHandler.CreateRecommendation)
+
+		// Eventos de analytics (fire-and-forget, sin auth)
+		public.POST("/events", eventHandler.TrackEvent)
 	}
 
 	// ── Rutas PROTEGIDAS — requieren JWT de cualquier usuario autenticado ─────
@@ -138,6 +144,8 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		admin.PATCH("/kits/:id/visibility", kitHandler.SetKitVisibility)
 		admin.PATCH("/kits/:id/sort-order", kitHandler.SetKitSortOrder)
 		admin.DELETE("/kits/:id", kitHandler.DeleteKit)
+
+		admin.GET("/analytics", eventHandler.GetAnalytics)
 
 		admin.GET("/orders", orderHandler.ListAllOrders)
 		admin.PATCH("/orders/:id/status", orderHandler.UpdateAdminOrderStatus)

@@ -149,6 +149,15 @@ func (r *OrderRepositoryMongo) List(ctx context.Context, skip int64, limit int64
 	return orders, nil
 }
 
+// CountByStatusInPeriod cuenta órdenes con alguno de los estados dados entre from y to.
+func (r *OrderRepositoryMongo) CountByStatusInPeriod(ctx context.Context, statuses []string, from, to time.Time) (int64, error) {
+	filter := bson.M{
+		"status":     bson.M{"$in": statuses},
+		"created_at": bson.M{"$gte": from, "$lte": to},
+	}
+	return r.collection.CountDocuments(ctx, filter)
+}
+
 // GetByStatus obtiene órdenes filtradas por estado con paginación
 func (r *OrderRepositoryMongo) GetByStatus(ctx context.Context, status string, skip int64, limit int64) ([]*domain.Order, error) {
 	opts := options.Find().
