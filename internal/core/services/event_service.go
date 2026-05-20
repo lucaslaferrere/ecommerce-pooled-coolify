@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	"ecommerce-pooled/internal/core/domain"
@@ -48,22 +49,50 @@ func (s *EventService) GetAnalytics(ctx context.Context, period string) (*domain
 		}
 	}
 
-	cartMap := make(map[string]int64, len(cartItems))
+	// Merge views and cart_adds — items appear even if they only have one of the two
+	type entry struct {
+		Name     string
+		Views    int64
+		CartAdds int64
+	}
+	combined := make(map[string]*entry)
+	for _, vi := range viewItems {
+		e := &entry{Name: vi.Name, Views: vi.Count}
+		combined[vi.ID] = e
+	}
 	for _, ci := range cartItems {
-		cartMap[ci.ID] = ci.Count
+		if e, ok := combined[ci.ID]; ok {
+			e.CartAdds = ci.Count
+		} else {
+			combined[ci.ID] = &entry{Name: ci.Name, CartAdds: ci.Count}
+		}
 	}
 
-	topN := len(viewItems)
-	if topN > 5 {
-		topN = 5
+	type scored struct {
+		id    string
+		entry *entry
+	}
+	scoredList := make([]scored, 0, len(combined))
+	for id, e := range combined {
+		scoredList = append(scoredList, scored{id, e})
+	}
+	sort.Slice(scoredList, func(i, j int) bool {
+		si := scoredList[i].entry.Views + scoredList[i].entry.CartAdds
+		sj := scoredList[j].entry.Views + scoredList[j].entry.CartAdds
+		return si > sj
+	})
+
+	topN := 5
+	if len(scoredList) < topN {
+		topN = len(scoredList)
 	}
 	topProducts := make([]domain.ProductStat, 0, topN)
-	for _, vi := range viewItems[:topN] {
+	for _, s := range scoredList[:topN] {
 		topProducts = append(topProducts, domain.ProductStat{
-			ID:       vi.ID,
-			Name:     vi.Name,
-			Views:    vi.Count,
-			CartAdds: cartMap[vi.ID],
+			ID:       s.id,
+			Name:     s.entry.Name,
+			Views:    s.entry.Views,
+			CartAdds: s.entry.CartAdds,
 		})
 	}
 
