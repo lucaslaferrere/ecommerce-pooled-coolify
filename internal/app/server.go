@@ -62,8 +62,9 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	orderHandler           := handlers.NewOrderHandler(orderService, cartService, paymentService)
 	webhookHandler         := handlers.NewWebhookHandler(paymentService, orderService, cfg.MPWebhookSecret)
 	distributorLeadHandler := handlers.NewDistributorLeadHandler(distributorLeadService)
-	wizardHandler := handlers.NewWizardRecommendationHandler(wizardService)
-	eventHandler  := handlers.NewEventHandler(eventService)
+	wizardHandler   := handlers.NewWizardRecommendationHandler(wizardService)
+	eventHandler    := handlers.NewEventHandler(eventService)
+	warrantyHandler := handlers.NewWarrantyHandler(cfg.ResendAPIKey, cfg.ResendFrom)
 
 	// ── Router ────────────────────────────────────────────────────────────────
 	router := gin.New()
@@ -108,6 +109,9 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 
 		// Eventos de analytics (fire-and-forget, sin auth)
 		public.POST("/events", eventHandler.TrackEvent)
+
+		// Garantía
+		public.POST("/warranty", warrantyHandler.Submit)
 	}
 
 	// ── Rutas PROTEGIDAS — requieren JWT de cualquier usuario autenticado ─────

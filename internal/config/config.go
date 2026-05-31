@@ -16,6 +16,10 @@ type Config struct {
 	AppURL          string // URL base pública del servidor (para imágenes locales)
 	ShutdownTimeout int    // segundos para graceful shutdown
 
+	// Resend (email)
+	ResendAPIKey string // API key de Resend
+	ResendFrom   string // Dirección "from" verificada en Resend
+
 	// Mercado Pago
 	MPAccessToken   string // Token de acceso (vacío = MP desactivado)
 	MPWebhookSecret string // Clave para validar firma HMAC de webhooks
@@ -43,6 +47,9 @@ func Load() *Config {
 		JWTSecret:       getEnv("JWT_SECRET", "change-me-in-production"),
 		AppURL:          getEnv("APP_URL", "http://localhost:8080"),
 		ShutdownTimeout: getEnvInt("SHUTDOWN_TIMEOUT_SECS", 10),
+
+		ResendAPIKey: getEnv("RESEND_API_KEY", ""),
+		ResendFrom:   getEnv("RESEND_FROM", "Pooled <noreply@pooled.com.ar>"),
 
 		MPAccessToken:   getEnv("MP_ACCESS_TOKEN", ""),
 		MPWebhookSecret: getEnv("MP_WEBHOOK_SECRET", ""),
