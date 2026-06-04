@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"time"
@@ -22,16 +23,28 @@ type TokenPair struct {
 
 // AuthService proporciona servicios de autenticación
 type AuthService struct {
-	userRepository ports.UserRepository
-	jwtSecret      string
+	userRepository       ports.UserRepository
+	passwordResetRepo    ports.PasswordResetRepository
+	emailService         *EmailService
+	jwtSecret            string
 }
 
 // NewAuthService crea una nueva instancia de AuthService
-func NewAuthService(userRepository ports.UserRepository, jwtSecret string) *AuthService {
+func NewAuthService(
+	userRepository ports.UserRepository,
+	jwtSecret string,
+) *AuthService {
 	return &AuthService{
 		userRepository: userRepository,
 		jwtSecret:      jwtSecret,
 	}
+}
+
+// WithPasswordReset inyecta el repositorio de tokens y el servicio de email
+func (s *AuthService) WithPasswordReset(repo ports.PasswordResetRepository, emailSvc *EmailService) *AuthService {
+	s.passwordResetRepo = repo
+	s.emailService = emailSvc
+	return s
 }
 
 // Register registra un nuevo usuario
@@ -253,4 +266,100 @@ func (s *AuthService) GetUserFromToken(claims jwt.MapClaims) (userID string, ema
 	}
 
 	return userID, email, role, nil
+}
+
+// ForgotPassword genera un código temporal y lo envía por email.
+// Siempre responde sin revelar si el email existe o no.
+func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
+	if s.passwordResetRepo == nil || s.emailService == nil {
+		return errors.New("servicio de recuperación no configurado")
+	}
+
+	user, err := s.userRepository.GetByEmail(ctx, email)
+	if err != nil {
+		return err
+	}
+	// Si el usuario no existe no revelamos nada (retornamos nil)
+	if user == nil {
+		return nil
+	}
+
+	// Invalidar tokens anteriores del mismo email
+	if err := s.passwordResetRepo.InvalidateByEmail(ctx, email); err != nil {
+		return err
+	}
+
+	code, err := generateNumericCode(6)
+	if err != nil {
+		return fmt.Errorf("error generando código: %w", err)
+	}
+
+	token := &domain.PasswordResetToken{
+		UserID:    user.ID,
+		Email:     email,
+		Code:      code,
+		ExpiresAt: time.Now().Add(15 * time.Minute),
+		Used:      false,
+		CreatedAt: time.Now(),
+	}
+
+	if err := s.passwordResetRepo.Create(ctx, token); err != nil {
+		return err
+	}
+
+	return s.emailService.SendPasswordResetCode(email, code)
+}
+
+// ResetPassword verifica el código y actualiza la contraseña del usuario
+func (s *AuthService) ResetPassword(ctx context.Context, email, code, newPassword string) error {
+	if s.passwordResetRepo == nil {
+		return errors.New("servicio de recuperación no configurado")
+	}
+
+	if len(newPassword) < 6 {
+		return errors.New("la contraseña debe tener al menos 6 caracteres")
+	}
+
+	resetToken, err := s.passwordResetRepo.GetActiveByEmailAndCode(ctx, email, code)
+	if err != nil {
+		return err
+	}
+	if resetToken == nil {
+		return errors.New("código inválido o vencido")
+	}
+
+	user, err := s.userRepository.GetByEmail(ctx, email)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return errors.New("usuario no encontrado")
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("error al hashear contraseña: %w", err)
+	}
+
+	user.PasswordHash = string(hashed)
+	user.UpdatedAt = time.Now()
+
+	if err := s.userRepository.Update(ctx, user); err != nil {
+		return err
+	}
+
+	return s.passwordResetRepo.MarkAsUsed(ctx, resetToken.ID)
+}
+
+// generateNumericCode genera un código numérico de n dígitos usando crypto/rand
+func generateNumericCode(n int) (string, error) {
+	const digits = "0123456789"
+	buf := make([]byte, n)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	for i := range buf {
+		buf[i] = digits[int(buf[i])%len(digits)]
+	}
+	return string(buf), nil
 }

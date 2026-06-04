@@ -28,9 +28,12 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	distributorLeadRepo := repositories.NewDistributorLeadRepositoryMongo(db.Collection("distributor_leads"))
 	wizardRepo := repositories.NewWizardRecommendationRepositoryMongo(db.Collection("wizard_recommendations"))
 	eventRepo  := repositories.NewEventRepositoryMongo(db.Collection("events"))
+	passwordResetRepo := repositories.NewPasswordResetRepositoryMongo(db.Collection("password_reset_tokens"))
 
 	// ── Services ─────────────────────────────────────────────────────────────
-	authService := services.NewAuthService(userRepo, cfg.JWTSecret)
+	emailService := services.NewEmailService(cfg.ResendAPIKey, cfg.ResendFrom)
+	authService := services.NewAuthService(userRepo, cfg.JWTSecret).
+		WithPasswordReset(passwordResetRepo, emailService)
 	userService := services.NewUserService(userRepo)
 	productService := services.NewProductService(productRepo)
 	kitService             := services.NewKitService(kitRepo)
@@ -92,6 +95,8 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		public.POST("/auth/register", authHandler.Register)
 		public.POST("/auth/login", authHandler.Login)
 		public.POST("/auth/refresh", authHandler.Refresh)
+		public.POST("/auth/forgot-password", authHandler.ForgotPassword)
+		public.POST("/auth/reset-password", authHandler.ResetPassword)
 
 		// Productos (lectura)
 		public.GET("/products", productHandler.ListProducts)

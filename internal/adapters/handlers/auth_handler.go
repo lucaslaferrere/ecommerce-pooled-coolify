@@ -40,6 +40,18 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
+// ForgotPasswordRequest contiene el email para solicitar recuperación
+type ForgotPasswordRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+// ResetPasswordRequest contiene los datos para restablecer la contraseña
+type ResetPasswordRequest struct {
+	Email       string `json:"email"        binding:"required,email"`
+	Code        string `json:"code"         binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=6"`
+}
+
 // Register maneja POST /auth/register
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
@@ -100,6 +112,39 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	c.JSON(http.StatusOK, tokens)
 }
 
+// ForgotPassword maneja POST /auth/forgot-password
+// Genera y envía un código temporal al email indicado.
+// Responde 200 siempre para no revelar si el email está registrado.
+func (h *AuthHandler) ForgotPassword(c *gin.Context) {
+	var req ForgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Ignoramos el error intencionalmente para no exponer si el email existe
+	_ = h.authService.ForgotPassword(c.Request.Context(), req.Email)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Si el email está registrado recibirás un código de verificación en breve"})
+}
+
+// ResetPassword maneja POST /auth/reset-password
+// Verifica el código y establece la nueva contraseña.
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var req ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.authService.ResetPassword(c.Request.Context(), req.Email, req.Code, req.NewPassword); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Contraseña actualizada correctamente"})
+}
+
 // RegisterRoutes registra las rutas de autenticación
 func (h *AuthHandler) RegisterRoutes(router *gin.Engine) {
 	auth := router.Group("/auth")
@@ -107,6 +152,8 @@ func (h *AuthHandler) RegisterRoutes(router *gin.Engine) {
 		auth.POST("/register", h.Register)
 		auth.POST("/login", h.Login)
 		auth.POST("/refresh", h.Refresh)
+		auth.POST("/forgot-password", h.ForgotPassword)
+		auth.POST("/reset-password", h.ResetPassword)
 	}
 }
 
