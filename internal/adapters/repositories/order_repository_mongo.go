@@ -158,6 +158,25 @@ func (r *OrderRepositoryMongo) CountByStatusInPeriod(ctx context.Context, status
 	return r.collection.CountDocuments(ctx, filter)
 }
 
+// FindPendingOlderThan devuelve órdenes en estado "pending" creadas antes de `before`.
+func (r *OrderRepositoryMongo) FindPendingOlderThan(ctx context.Context, before time.Time) ([]*domain.Order, error) {
+	filter := bson.M{
+		"status":     "pending",
+		"created_at": bson.M{"$lt": before},
+	}
+	cursor, err := r.collection.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var orders []*domain.Order
+	if err = cursor.All(ctx, &orders); err != nil {
+		return nil, err
+	}
+	return orders, nil
+}
+
 // GetByStatus obtiene órdenes filtradas por estado con paginación
 func (r *OrderRepositoryMongo) GetByStatus(ctx context.Context, status string, skip int64, limit int64) ([]*domain.Order, error) {
 	opts := options.Find().

@@ -50,6 +50,12 @@ func main() {
 	// ── Router (wiring completo en internal/app) ──────────────────────────────
 	router := app.BuildRouter(cfg, db)
 
+	// ── Expiración de órdenes abandonadas ─────────────────────────────────────
+	// Cada 5 minutos cancela órdenes "pending" con más de 30 min sin pago y restaura stock.
+	expireCtx, expireCancel := context.WithCancel(context.Background())
+	defer expireCancel()
+	app.StartOrderExpirer(expireCtx, db, 5*time.Minute, 30*time.Minute)
+
 	// ── Servidor HTTP con graceful shutdown ───────────────────────────────────
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

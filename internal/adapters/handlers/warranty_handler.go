@@ -111,9 +111,9 @@ func buildWarrantyHTML(r warrantyRequest) string {
       <p style="color:#94a3b8;margin:4px 0 0;font-size:14px;">pooled.com.ar</p>
     </div>
     <div style="padding:32px;">
-      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+      <table style="width:100%%;border-collapse:collapse;font-size:14px;">
         <tr><td colspan="2" style="padding-bottom:8px;font-weight:600;color:#0B1F3A;border-bottom:1px solid #e5e7eb;margin-bottom:12px;">Producto</td></tr>
-        <tr><td style="padding:6px 0;color:#6b7280;width:40%%;">Número de serie</td><td style="color:#111827;">%s</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;width:160px;">Número de serie</td><td style="color:#111827;">%s</td></tr>
         <tr><td style="padding:6px 0;color:#6b7280;">Modelo / Línea</td><td style="color:#111827;">%s</td></tr>
         <tr><td style="padding:6px 0;color:#6b7280;">Problema</td><td style="color:#111827;">%s</td></tr>
 

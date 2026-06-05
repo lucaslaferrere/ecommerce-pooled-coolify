@@ -21,8 +21,9 @@ import (
 // integration test output stays clean.
 func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	// ── Repositories ─────────────────────────────────────────────────────────
-	userRepo := repositories.NewUserRepositoryMongo(db.Collection("users"))
-	productRepo := repositories.NewProductRepositoryMongo(db.Collection("products"))
+	userRepo             := repositories.NewUserRepositoryMongo(db.Collection("users"))
+	productRepo          := repositories.NewProductRepositoryMongo(db.Collection("products"))
+	passwordResetRepo    := repositories.NewPasswordResetRepositoryMongo(db.Collection("password_reset_tokens"))
 	kitRepo             := repositories.NewKitRepositoryMongo(db.Collection("kits"))
 	orderRepo           := repositories.NewOrderRepositoryMongo(db.Collection("orders"))
 	distributorLeadRepo := repositories.NewDistributorLeadRepositoryMongo(db.Collection("distributor_leads"))
@@ -30,7 +31,9 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	eventRepo  := repositories.NewEventRepositoryMongo(db.Collection("events"))
 
 	// ── Services ─────────────────────────────────────────────────────────────
-	authService := services.NewAuthService(userRepo, cfg.JWTSecret)
+	emailService := services.NewEmailService(cfg.ResendAPIKey, cfg.ResendFrom)
+	authService := services.NewAuthService(userRepo, cfg.JWTSecret).
+		WithPasswordReset(passwordResetRepo, emailService)
 	userService := services.NewUserService(userRepo)
 	productService := services.NewProductService(productRepo)
 	kitService             := services.NewKitService(kitRepo)
@@ -59,8 +62,8 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	userHandler := handlers.NewUserHandler(userService)
 	productHandler := handlers.NewProductHandler(productService, imageStorage)
 	kitHandler             := handlers.NewKitHandler(kitService, imageStorage)
-	orderHandler           := handlers.NewOrderHandler(orderService, cartService, paymentService)
-	webhookHandler         := handlers.NewWebhookHandler(paymentService, orderService, cfg.MPWebhookSecret)
+	orderHandler           := handlers.NewOrderHandler(orderService, cartService, paymentService, emailService)
+	webhookHandler         := handlers.NewWebhookHandler(paymentService, orderService, emailService, cfg.MPWebhookSecret)
 	distributorLeadHandler := handlers.NewDistributorLeadHandler(distributorLeadService)
 	wizardHandler   := handlers.NewWizardRecommendationHandler(wizardService)
 	eventHandler    := handlers.NewEventHandler(eventService)
@@ -92,6 +95,8 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		public.POST("/auth/register", authHandler.Register)
 		public.POST("/auth/login", authHandler.Login)
 		public.POST("/auth/refresh", authHandler.Refresh)
+		public.POST("/auth/forgot-password", authHandler.ForgotPassword)
+		public.POST("/auth/reset-password", authHandler.ResetPassword)
 
 		// Productos (lectura)
 		public.GET("/products", productHandler.ListProducts)

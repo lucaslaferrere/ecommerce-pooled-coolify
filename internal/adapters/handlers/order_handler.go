@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"strconv"
@@ -17,6 +18,7 @@ type OrderHandler struct {
 	orderService   *services.OrderService
 	cartService    *services.CartService
 	paymentService *services.PaymentService
+	emailService   *services.EmailService
 }
 
 // NewOrderHandler crea una nueva instancia de OrderHandler
@@ -24,12 +26,20 @@ func NewOrderHandler(
 	orderService *services.OrderService,
 	cartService *services.CartService,
 	paymentService *services.PaymentService,
+	emailService *services.EmailService,
 ) *OrderHandler {
 	return &OrderHandler{
 		orderService:   orderService,
 		cartService:    cartService,
 		paymentService: paymentService,
+		emailService:   emailService,
 	}
+}
+
+// FacturaARequest contiene los datos de Factura A opcionales
+type FacturaARequest struct {
+	RazonSocial string `json:"razon_social"`
+	CUIT        string `json:"cuit"`
 }
 
 // checkoutRequest es el payload que envía el frontend al hacer checkout.
@@ -38,11 +48,17 @@ type checkoutRequest struct {
 	CustomerName    string            `json:"customer_name" binding:"required"`
 	CustomerEmail   string            `json:"customer_email" binding:"required,email"`
 	CustomerPhone   string            `json:"customer_phone" binding:"required"`
-	ShippingAddress string            `json:"shipping_address" binding:"required"`
-	ShippingCity    string            `json:"shipping_city" binding:"required"`
-	ShippingZip     string            `json:"shipping_zip" binding:"required"`
+	DniCuit         string            `json:"dni_cuit"`
+	ShippingAddress string            `json:"shipping_address"`
+	ShippingCity    string            `json:"shipping_city"`
+	ShippingProvince string           `json:"shipping_province"`
+	ShippingZip     string            `json:"shipping_zip"`
+	ShippingCost    float64           `json:"shipping_cost"`
+	Discount        float64           `json:"discount"`
 	Notes           string            `json:"notes"`
 	PaymentMethod   string            `json:"payment_method"`
+	DeliveryMethod  string            `json:"delivery_method"`
+	FacturaA        *FacturaARequest  `json:"factura_a"`
 }
 
 // Checkout maneja POST /api/v1/checkout
@@ -68,7 +84,16 @@ func (h *OrderHandler) Checkout(c *gin.Context) {
 	sd := domain.ShippingDetails{
 		Address:    req.ShippingAddress,
 		City:       req.ShippingCity,
+		Province:   req.ShippingProvince,
 		PostalCode: req.ShippingZip,
+	}
+
+	var facturaA *domain.FacturaA
+	if req.FacturaA != nil && req.FacturaA.RazonSocial != "" {
+		facturaA = &domain.FacturaA{
+			RazonSocial: req.FacturaA.RazonSocial,
+			CUIT:        req.FacturaA.CUIT,
+		}
 	}
 
 	// Paso 1: validar carrito y calcular precios
@@ -79,7 +104,7 @@ func (h *OrderHandler) Checkout(c *gin.Context) {
 	}
 
 	// Paso 2: descontar stock y persistir la orden (estado: "pending")
-	order, err := h.orderService.Checkout(c.Request.Context(), userID, cart.Items, sd, req.CustomerName, req.CustomerEmail, req.CustomerPhone, req.Notes, req.PaymentMethod)
+	order, err := h.orderService.Checkout(c.Request.Context(), userID, cart.Items, sd, req.CustomerName, req.CustomerEmail, req.CustomerPhone, req.DniCuit, req.Notes, req.PaymentMethod, req.DeliveryMethod, facturaA, req.ShippingCost, req.Discount)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
@@ -157,6 +182,22 @@ func (h *OrderHandler) UpdateAdminOrderStatus(c *gin.Context) {
 		return
 	}
 
+	// Email de confirmación cuando el admin aprueba manualmente (ej: transferencia)
+	if req.Status == "paid" {
+		go func() {
+			order, err := h.orderService.GetOrder(context.Background(), id)
+			if err != nil {
+				log.Printf("email confirmación: error obteniendo orden %s: %v", id.Hex(), err)
+				return
+			}
+			if err := h.emailService.SendOrderConfirmation(order); err != nil {
+				log.Printf("email confirmación orden %s: %v", id.Hex(), err)
+			} else {
+				log.Printf("email confirmación enviado a %s (orden %s)", order.CustomerEmail, id.Hex())
+			}
+		}()
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "estado actualizado"})
 }
 
@@ -180,6 +221,17 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 
 // GetOrder maneja GET /api/orders/:id
 func (h *OrderHandler) GetOrder(c *gin.Context) {
+	userIDStr, ok := c.Get("user_id")
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "autenticación requerida"})
+		return
+	}
+	userID, err := primitive.ObjectIDFromHex(userIDStr.(string))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "token inválido"})
+		return
+	}
+
 	id, err := primitive.ObjectIDFromHex(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
@@ -188,6 +240,10 @@ func (h *OrderHandler) GetOrder(c *gin.Context) {
 	order, err := h.orderService.GetOrder(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if order.UserID != userID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "acceso denegado"})
 		return
 	}
 	c.JSON(http.StatusOK, order)

@@ -37,4 +37,7 @@ type OrderRepository interface {
 
 	// CountByStatusInPeriod cuenta órdenes con alguno de los estados dados, creadas entre from y to.
 	CountByStatusInPeriod(ctx context.Context, statuses []string, from, to time.Time) (int64, error)
+
+	// FindPendingOlderThan devuelve órdenes en estado "pending" creadas antes de `before`.
+	FindPendingOlderThan(ctx context.Context, before time.Time) ([]*domain.Order, error)
 }

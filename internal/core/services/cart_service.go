@@ -52,7 +52,7 @@ func (s *CartService) ValidateCart(ctx context.Context, items []domain.CartItem)
 
 		if len(product.Variants) == 0 {
 			// Producto sin variantes: verifica stock a nivel producto
-			if product.Stock > 0 && product.Stock < item.Quantity {
+			if product.Stock < item.Quantity {
 				return nil, ErrInsufficientStock
 			}
 			unitPrice = product.BasePrice
@@ -89,6 +89,7 @@ func (s *CartService) ValidateCart(ctx context.Context, items []domain.CartItem)
 
 		validated[i] = domain.CartItem{
 			ProductID:  item.ProductID,
+			Name:       product.Name,
 			VariantSKU: sku,
 			Quantity:   item.Quantity,
 			UnitPrice:  unitPrice,

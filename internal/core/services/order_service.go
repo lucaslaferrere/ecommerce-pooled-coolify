@@ -105,6 +105,7 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, id primitive.Objec
 		"shipped":    true,
 		"delivered":  true,
 		"cancelled":  true,
+		"rejected":   true,
 	}
 
 	if !validStatuses[status] {
@@ -114,13 +115,12 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, id primitive.Objec
 	return s.orderRepository.UpdateStatus(ctx, id, status)
 }
 
-// CancelOrder cancela una orden
+// CancelOrder cancela una orden y restaura el stock de sus items.
 func (s *OrderService) CancelOrder(ctx context.Context, id primitive.ObjectID) error {
 	order, err := s.orderRepository.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
-
 	if order == nil {
 		return ErrOrderNotFound
 	}
@@ -128,6 +128,14 @@ func (s *OrderService) CancelOrder(ctx context.Context, id primitive.ObjectID) e
 	// Solo se pueden cancelar órdenes que están en estado pending o processing
 	if order.Status != "pending" && order.Status != "processing" {
 		return errors.New("solo se pueden cancelar órdenes en estado pending o processing")
+	}
+
+	for _, item := range order.Items {
+		if item.VariantSKU == "" {
+			_ = s.productRepository.IncrementProductStock(ctx, item.ProductID, item.Quantity)
+		} else {
+			_ = s.productRepository.IncrementVariantStock(ctx, item.ProductID, item.VariantSKU, item.Quantity)
+		}
 	}
 
 	return s.orderRepository.UpdateStatus(ctx, id, "cancelled")
@@ -171,6 +179,16 @@ func (s *OrderService) ConfirmPayment(ctx context.Context, orderID primitive.Obj
 	if order.Status == "paid" {
 		return nil // ya procesado, respuesta idempotente
 	}
+	if order.Status == "cancelled" {
+		// Orden cancelada (expirada o cancelada manualmente): restaurar stock antes de marcar como pagada
+		for _, item := range order.Items {
+			if item.VariantSKU == "" {
+				_ = s.productRepository.DecrementProductStock(ctx, item.ProductID, item.Quantity)
+			} else {
+				_ = s.productRepository.DecrementVariantStock(ctx, item.ProductID, item.VariantSKU, item.Quantity)
+			}
+		}
+	}
 	order.Status = "paid"
 	order.PaymentID = paymentID
 	order.UpdatedAt = time.Now()
@@ -179,7 +197,7 @@ func (s *OrderService) ConfirmPayment(ctx context.Context, orderID primitive.Obj
 
 // Checkout descuenta stock atómicamente y crea la orden. Recibe ítems ya validados
 // (con UnitPrice calculado) provenientes de CartService.ValidateCart.
-func (s *OrderService) Checkout(ctx context.Context, userID primitive.ObjectID, items []domain.CartItem, shipping domain.ShippingDetails, customerName, customerEmail, customerPhone, notes, paymentMethod string) (*domain.Order, error) {
+func (s *OrderService) Checkout(ctx context.Context, userID primitive.ObjectID, items []domain.CartItem, shipping domain.ShippingDetails, customerName, customerEmail, customerPhone, dniCuit, notes, paymentMethod, deliveryMethod string, facturaA *domain.FacturaA, shippingCost, discount float64) (*domain.Order, error) {
 	if userID.IsZero() {
 		return nil, errors.New("ID de usuario requerido")
 	}
@@ -187,9 +205,13 @@ func (s *OrderService) Checkout(ctx context.Context, userID primitive.ObjectID, 
 		return nil, errors.New("el carrito no puede estar vacío")
 	}
 
-	var total float64
+	var subtotal float64
 	for _, item := range items {
-		total += item.UnitPrice * float64(item.Quantity)
+		subtotal += item.UnitPrice * float64(item.Quantity)
+	}
+	total := subtotal + shippingCost - discount
+	if total < 0 {
+		total = 0
 	}
 
 	// Decrementar stock atómicamente; rastrear éxitos para rollback en caso de fallo parcial
@@ -229,19 +251,53 @@ func (s *OrderService) Checkout(ctx context.Context, userID primitive.ObjectID, 
 		CustomerName:    customerName,
 		CustomerEmail:   customerEmail,
 		CustomerPhone:   customerPhone,
+		DniCuit:         dniCuit,
 		Notes:           notes,
 		PaymentMethod:   paymentMethod,
+		DeliveryMethod:  deliveryMethod,
 		ShippingDetails: shipping,
+		ShippingCost:    shippingCost,
+		Discount:        discount,
+		FacturaA:        facturaA,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
 
 	if err := s.orderRepository.Create(ctx, order); err != nil {
 		for _, d := range done {
-			_ = s.productRepository.IncrementVariantStock(ctx, d.productID, d.sku, d.qty)
+			if d.sku == "" {
+				_ = s.productRepository.IncrementProductStock(ctx, d.productID, d.qty)
+			} else {
+				_ = s.productRepository.IncrementVariantStock(ctx, d.productID, d.sku, d.qty)
+			}
 		}
 		return nil, err
 	}
 
 	return order, nil
+}
+
+// ExpireAbandonedOrders cancela órdenes "pending" más antiguas que `maxAge` y
+// restaura el stock de sus items. Devuelve la cantidad de órdenes expiradas.
+func (s *OrderService) ExpireAbandonedOrders(ctx context.Context, maxAge time.Duration) (int, error) {
+	cutoff := time.Now().Add(-maxAge)
+	orders, err := s.orderRepository.FindPendingOlderThan(ctx, cutoff)
+	if err != nil {
+		return 0, err
+	}
+
+	var expired int
+	for _, order := range orders {
+		for _, item := range order.Items {
+			if item.VariantSKU == "" {
+				_ = s.productRepository.IncrementProductStock(ctx, item.ProductID, item.Quantity)
+			} else {
+				_ = s.productRepository.IncrementVariantStock(ctx, item.ProductID, item.VariantSKU, item.Quantity)
+			}
+		}
+		if err := s.orderRepository.UpdateStatus(ctx, order.ID, "cancelled"); err == nil {
+			expired++
+		}
+	}
+	return expired, nil
 }

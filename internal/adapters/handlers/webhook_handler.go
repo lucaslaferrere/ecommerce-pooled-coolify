@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -19,6 +20,7 @@ import (
 type WebhookHandler struct {
 	paymentService *services.PaymentService
 	orderService   *services.OrderService
+	emailService   *services.EmailService
 	webhookSecret  string
 }
 
@@ -26,11 +28,13 @@ type WebhookHandler struct {
 func NewWebhookHandler(
 	paymentService *services.PaymentService,
 	orderService *services.OrderService,
+	emailService *services.EmailService,
 	webhookSecret string,
 ) *WebhookHandler {
 	return &WebhookHandler{
 		paymentService: paymentService,
 		orderService:   orderService,
+		emailService:   emailService,
 		webhookSecret:  webhookSecret,
 	}
 }
@@ -123,6 +127,21 @@ func (h *WebhookHandler) HandleMercadoPago(c *gin.Context) {
 	}
 
 	log.Printf("webhook mp: orden %s marcada como pagada (pago %s)", orderID.Hex(), paymentInfo.ID)
+
+	// 7. Email de confirmación al cliente (best-effort)
+	go func() {
+		order, err := h.orderService.GetOrder(context.Background(), orderID)
+		if err != nil {
+			log.Printf("webhook mp: error obteniendo orden %s para email: %v", orderID.Hex(), err)
+			return
+		}
+		if err := h.emailService.SendOrderConfirmation(order); err != nil {
+			log.Printf("webhook mp: error enviando email confirmación orden %s: %v", orderID.Hex(), err)
+		} else {
+			log.Printf("webhook mp: email confirmación enviado a %s (orden %s)", order.CustomerEmail, orderID.Hex())
+		}
+	}()
+
 	c.JSON(http.StatusOK, gin.H{"message": "ok"})
 }
 
