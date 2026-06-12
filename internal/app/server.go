@@ -75,6 +75,8 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	warrantyHandler  := handlers.NewWarrantyHandler(cfg.ResendAPIKey, cfg.ResendFrom)
 	cartLinkHandler  := handlers.NewCartLinkHandler(cartLinkService, cfg.FrontendURL)
 
+	log.Println("[BOOT] server.go v2 — cart-links registrado")
+
 	// ── Router ────────────────────────────────────────────────────────────────
 	router := gin.New()
 	router.Use(gin.Recovery())

@@ -1,9 +1,9 @@
 FROM golang:1.25-alpine AS builder
-ARG CACHE_BUST=20260612
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
+ARG CACHE_BUST=20260612b
 RUN CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/api
 
 FROM alpine:3.20
