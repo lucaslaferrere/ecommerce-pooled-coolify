@@ -80,12 +80,13 @@ func (r *OrderRepositoryMongo) Update(ctx context.Context, order *domain.Order) 
 	order.UpdatedAt = time.Now()
 	filter := bson.M{"_id": order.ID}
 	update := bson.M{"$set": bson.M{
-		"items":         order.Items,
-		"total":         order.Total,
-		"status":        order.Status,
-		"preference_id": order.PreferenceID,
-		"payment_id":    order.PaymentID,
-		"updated_at":    order.UpdatedAt,
+		"items":           order.Items,
+		"total":           order.Total,
+		"status":          order.Status,
+		"preference_id":   order.PreferenceID,
+		"payment_id":      order.PaymentID,
+		"tracking_number": order.TrackingNumber,
+		"updated_at":      order.UpdatedAt,
 	}}
 	result, err := r.collection.UpdateOne(ctx, filter, update)
 	if err != nil {

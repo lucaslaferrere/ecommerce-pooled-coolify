@@ -246,6 +246,78 @@ func buildOrderConfirmationHTML(o *domain.Order) string {
 	)
 }
 
+// SendShippingNotification avisa al cliente que su pedido fue despachado,
+// incluyendo el número de seguimiento.
+func (s *EmailService) SendShippingNotification(order *domain.Order) error {
+	if !s.Enabled() {
+		return nil
+	}
+	ref := strings.ToUpper(order.ID.Hex()[len(order.ID.Hex())-8:])
+	subject := fmt.Sprintf("🚚 Tu pedido #%s está en camino — Pooled", ref)
+	return s.Send(order.CustomerEmail, subject, buildShippingHTML(order))
+}
+
+// ── HTML: shipping notification ───────────────────────────────────────────────
+
+func buildShippingHTML(o *domain.Order) string {
+	orderRef := strings.ToUpper(o.ID.Hex()[len(o.ID.Hex())-8:])
+
+	var destino string
+	if o.DeliveryMethod == "retirar" {
+		destino = "Retiro en local — Zona Pilar"
+	} else {
+		sd := o.ShippingDetails
+		parts := []string{sd.Address, sd.City, sd.Province}
+		var filtered []string
+		for _, p := range parts {
+			if p != "" {
+				filtered = append(filtered, p)
+			}
+		}
+		destino = strings.Join(filtered, ", ")
+		if sd.PostalCode != "" {
+			destino += " (" + sd.PostalCode + ")"
+		}
+	}
+
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:system-ui,sans-serif;">
+<table width="100%%" cellpadding="0" cellspacing="0" style="background:#f9fafb;padding:32px 16px;">
+<tr><td align="center">
+<table width="100%%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+  <tr>
+    <td style="background:#0B1F3A;padding:28px 32px;">
+      <p style="margin:0;color:#94a3b8;font-size:13px;">pooled.com.ar</p>
+      <h1 style="margin:8px 0 4px;color:#ffffff;font-size:22px;">🚚 ¡Tu pedido está en camino!</h1>
+      <p style="margin:0;color:#64748b;font-size:13px;">Pedido <strong style="color:#94a3b8;">#%s</strong></p>
+    </td>
+  </tr>
+  <tr><td style="padding:28px 32px;">
+    <p style="margin:0 0 20px;color:#374151;font-size:15px;">Hola <strong>%s</strong>, despachamos tu pedido.</p>
+    <p style="margin:0 0 8px;font-weight:600;color:#0B1F3A;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;">Número de seguimiento</p>
+    <div style="margin:0 0 24px;">
+      <span style="display:inline-block;background:#f3f4f6;border-radius:10px;padding:14px 28px;font-size:22px;font-weight:700;letter-spacing:2px;color:#0B1F3A;font-family:monospace;">%s</span>
+    </div>
+    <p style="margin:0 0 6px;font-weight:600;color:#0B1F3A;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;">Destino</p>
+    <p style="margin:0 0 24px;color:#374151;font-size:14px;">%s</p>
+    <p style="margin:0;padding:16px;background:#eff6ff;border-radius:8px;font-size:13px;color:#1e40af;">
+      Podés hacer el seguimiento de tu envío con ese número. Si tenés alguna consulta escribinos por WhatsApp +54 9 11 2342-7593.
+    </p>
+  </td></tr>
+  <tr>
+    <td style="padding:16px 32px;background:#f8fafc;border-top:1px solid #e5e7eb;text-align:center;">
+      <p style="margin:0;font-size:12px;color:#9ca3af;">pooled.com.ar — Iluminación subacuática</p>
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`, orderRef, o.CustomerName, o.TrackingNumber, destino)
+}
+
 func notasHTML(o *domain.Order) string {
 	if o.Notes == "" {
 		return ""

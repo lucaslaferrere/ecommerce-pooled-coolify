@@ -166,6 +166,20 @@ func (s *OrderService) SetPreference(ctx context.Context, id primitive.ObjectID,
 	return s.orderRepository.Update(ctx, order)
 }
 
+// SetTracking guarda el número de seguimiento del envío de una orden.
+func (s *OrderService) SetTracking(ctx context.Context, id primitive.ObjectID, trackingNumber string) error {
+	order, err := s.orderRepository.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if order == nil {
+		return ErrOrderNotFound
+	}
+	order.TrackingNumber = trackingNumber
+	order.UpdatedAt = time.Now()
+	return s.orderRepository.Update(ctx, order)
+}
+
 // ConfirmPayment marca la orden como pagada y registra el ID de pago de MP.
 // Idempotente: si la orden ya está en estado "paid", retorna nil.
 func (s *OrderService) ConfirmPayment(ctx context.Context, orderID primitive.ObjectID, paymentID string) error {

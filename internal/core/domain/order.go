@@ -38,6 +38,7 @@ type Order struct {
 	FacturaA        *FacturaA          `bson:"factura_a,omitempty" json:"factura_a,omitempty"`
 	ShippingCost    float64            `bson:"shipping_cost,omitempty" json:"shipping_cost,omitempty"`
 	Discount        float64            `bson:"discount,omitempty" json:"discount,omitempty"`
+	TrackingNumber  string             `bson:"tracking_number,omitempty" json:"tracking_number,omitempty"`
 	PreferenceID    string             `bson:"preference_id,omitempty" json:"preference_id,omitempty"`
 	PaymentID       string             `bson:"payment_id,omitempty" json:"payment_id,omitempty"`
 	CreatedAt       time.Time          `bson:"created_at" json:"created_at,omitempty"`

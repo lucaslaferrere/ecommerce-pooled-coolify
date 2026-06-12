@@ -170,7 +170,8 @@ func (h *OrderHandler) UpdateAdminOrderStatus(c *gin.Context) {
 	}
 
 	var req struct {
-		Status string `json:"status" binding:"required"`
+		Status         string `json:"status" binding:"required"`
+		TrackingNumber string `json:"tracking_number"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -180,6 +181,26 @@ func (h *OrderHandler) UpdateAdminOrderStatus(c *gin.Context) {
 	if err := h.orderService.UpdateOrderStatus(c.Request.Context(), id, req.Status); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Guardar tracking y avisar al cliente cuando el pedido se despacha
+	if req.Status == "shipped" && req.TrackingNumber != "" {
+		if err := h.orderService.SetTracking(c.Request.Context(), id, req.TrackingNumber); err != nil {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "estado actualizado pero no se pudo guardar el tracking: " + err.Error()})
+			return
+		}
+		go func() {
+			order, err := h.orderService.GetOrder(context.Background(), id)
+			if err != nil {
+				log.Printf("email envío: error obteniendo orden %s: %v", id.Hex(), err)
+				return
+			}
+			if err := h.emailService.SendShippingNotification(order); err != nil {
+				log.Printf("email envío orden %s: %v", id.Hex(), err)
+			} else {
+				log.Printf("email envío enviado a %s (orden %s, tracking %s)", order.CustomerEmail, id.Hex(), order.TrackingNumber)
+			}
+		}()
 	}
 
 	// Email de confirmación cuando el admin aprueba manualmente (ej: transferencia)
