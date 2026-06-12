@@ -1,4 +1,5 @@
 FROM golang:1.25-alpine AS builder
+ARG CACHE_BUST=20260612
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
