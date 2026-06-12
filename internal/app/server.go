@@ -6,6 +6,8 @@ package app
 import (
 	"log"
 	"net/http"
+	"strings"
+	"time"
 
 	"ecommerce-pooled/internal/adapters/handlers"
 	"ecommerce-pooled/internal/adapters/repositories"
@@ -20,6 +22,7 @@ import (
 // under /api/v1.  gin.Logger() is only added when GinMode != "test" so that
 // integration test output stays clean.
 func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
+	authLimiter := handlers.NewRateLimiter(10, time.Minute) // 10 intentos por minuto por IP
 	// ── Repositories ─────────────────────────────────────────────────────────
 	userRepo             := repositories.NewUserRepositoryMongo(db.Collection("users"))
 	productRepo          := repositories.NewProductRepositoryMongo(db.Collection("products"))
@@ -75,7 +78,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	if cfg.GinMode != gin.TestMode {
 		router.Use(gin.Logger())
 	}
-	router.Use(CorsMiddleware())
+	router.Use(CorsMiddleware(cfg.AllowedOrigin))
 
 	router.Static("/uploads", "./uploads")
 	router.GET("/health", func(c *gin.Context) {
@@ -91,12 +94,12 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		// Webhooks (MP llama sin JWT; la firma HMAC se valida internamente)
 		public.POST("/webhooks/mercadopago", webhookHandler.HandleMercadoPago)
 
-		// Auth
-		public.POST("/auth/register", authHandler.Register)
-		public.POST("/auth/login", authHandler.Login)
-		public.POST("/auth/refresh", authHandler.Refresh)
-		public.POST("/auth/forgot-password", authHandler.ForgotPassword)
-		public.POST("/auth/reset-password", authHandler.ResetPassword)
+		// Auth (rate limited: 10 req/min por IP)
+		public.POST("/auth/register", authLimiter.Middleware(), authHandler.Register)
+		public.POST("/auth/login", authLimiter.Middleware(), authHandler.Login)
+		public.POST("/auth/refresh", authLimiter.Middleware(), authHandler.Refresh)
+		public.POST("/auth/forgot-password", authLimiter.Middleware(), authHandler.ForgotPassword)
+		public.POST("/auth/reset-password", authLimiter.Middleware(), authHandler.ResetPassword)
 
 		// Productos (lectura)
 		public.GET("/products", productHandler.ListProducts)
@@ -165,10 +168,20 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	return router
 }
 
-// CorsMiddleware permite peticiones cross-origin desde el frontend.
-func CorsMiddleware() gin.HandlerFunc {
+// CorsMiddleware permite peticiones cross-origin solo desde el origen configurado.
+// En desarrollo también acepta localhost en cualquier puerto.
+func CorsMiddleware(allowedOrigin string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
+		origin := c.GetHeader("Origin")
+		allowed := origin == allowedOrigin ||
+			strings.HasPrefix(origin, "http://localhost:") ||
+			strings.HasPrefix(origin, "http://127.0.0.1:")
+
+		if allowed {
+			c.Header("Access-Control-Allow-Origin", origin)
+		} else {
+			c.Header("Access-Control-Allow-Origin", allowedOrigin)
+		}
 		c.Header("Access-Control-Allow-Credentials", "true")
 		c.Header("Access-Control-Allow-Headers",
 			"Content-Type, Authorization, Accept, Origin, Cache-Control, X-Requested-With")

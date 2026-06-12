@@ -14,6 +14,7 @@ type Config struct {
 	GinMode         string
 	JWTSecret       string
 	AppURL          string // URL base pública del servidor (para imágenes locales)
+	AllowedOrigin   string // Origen permitido en CORS (frontend URL)
 	ShutdownTimeout int    // segundos para graceful shutdown
 
 	// Resend (email)
@@ -46,6 +47,7 @@ func Load() *Config {
 		GinMode:         getEnv("GIN_MODE", "debug"),
 		JWTSecret:       getEnv("JWT_SECRET", "change-me-in-production"),
 		AppURL:          getEnv("APP_URL", "http://localhost:8080"),
+		AllowedOrigin:   getEnv("ALLOWED_ORIGIN", "http://localhost:5173"),
 		ShutdownTimeout: getEnvInt("SHUTDOWN_TIMEOUT_SECS", 10),
 
 		ResendAPIKey: getEnv("RESEND_API_KEY", ""),
