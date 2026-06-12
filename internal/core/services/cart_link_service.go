@@ -31,7 +31,7 @@ func (s *CartLinkService) Create(ctx context.Context, items []domain.CartLinkIte
 		Token:     hex.EncodeToString(b),
 		Items:     items,
 		CreatedAt: time.Now(),
-		ExpiresAt: time.Now().Add(72 * time.Hour), // expira en 3 días
+		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
 	}
 	if err := s.repo.Create(ctx, link); err != nil {
 		return nil, err
