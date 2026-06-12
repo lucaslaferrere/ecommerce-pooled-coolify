@@ -303,7 +303,7 @@ func buildShippingHTML(o *domain.Order) string {
     <p style="margin:0 0 6px;font-weight:600;color:#0B1F3A;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;">Destino</p>
     <p style="margin:0 0 24px;color:#374151;font-size:14px;">%s</p>
     <p style="margin:0;padding:16px;background:#eff6ff;border-radius:8px;font-size:13px;color:#1e40af;">
-      Podés hacer el seguimiento de tu envío con ese número. Si tenés alguna consulta escribinos por WhatsApp +54 9 11 2342-7593.
+      Podés hacer el seguimiento de tu envío con ese número desde la aplicación de Andreani. Si tenés alguna consulta escribinos por WhatsApp +54 9 11 2342-7593.
     </p>
   </td></tr>
   <tr>

@@ -15,6 +15,7 @@ type Config struct {
 	JWTSecret       string
 	AppURL          string // URL base pública del servidor (para imágenes locales)
 	AllowedOrigin   string // Origen permitido en CORS (frontend URL)
+	FrontendURL     string // URL pública del frontend (para generar cart links)
 	ShutdownTimeout int    // segundos para graceful shutdown
 
 	// Resend (email)
@@ -48,6 +49,7 @@ func Load() *Config {
 		JWTSecret:       getEnv("JWT_SECRET", "change-me-in-production"),
 		AppURL:          getEnv("APP_URL", "http://localhost:8080"),
 		AllowedOrigin:   getEnv("ALLOWED_ORIGIN", "http://localhost:5173"),
+		FrontendURL:     getEnv("FRONTEND_URL", "http://localhost:5173"),
 		ShutdownTimeout: getEnvInt("SHUTDOWN_TIMEOUT_SECS", 10),
 
 		ResendAPIKey: getEnv("RESEND_API_KEY", ""),

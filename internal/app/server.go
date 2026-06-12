@@ -31,7 +31,8 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	orderRepo           := repositories.NewOrderRepositoryMongo(db.Collection("orders"))
 	distributorLeadRepo := repositories.NewDistributorLeadRepositoryMongo(db.Collection("distributor_leads"))
 	wizardRepo := repositories.NewWizardRecommendationRepositoryMongo(db.Collection("wizard_recommendations"))
-	eventRepo  := repositories.NewEventRepositoryMongo(db.Collection("events"))
+	eventRepo      := repositories.NewEventRepositoryMongo(db.Collection("events"))
+	cartLinkRepo   := repositories.NewCartLinkRepositoryMongo(db.Collection("cart_links"))
 
 	// ── Services ─────────────────────────────────────────────────────────────
 	emailService := services.NewEmailService(cfg.ResendAPIKey, cfg.ResendFrom)
@@ -44,7 +45,8 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	orderService           := services.NewOrderService(orderRepo, productRepo)
 	distributorLeadService := services.NewDistributorLeadService(distributorLeadRepo)
 	wizardService := services.NewWizardRecommendationService(wizardRepo)
-	eventService  := services.NewEventService(eventRepo, orderRepo)
+	eventService     := services.NewEventService(eventRepo, orderRepo)
+	cartLinkService  := services.NewCartLinkService(cartLinkRepo)
 	imageStorage := services.NewLocalImageStorage("./uploads", cfg.AppURL+"/uploads")
 
 	paymentService, err := services.NewPaymentService(
@@ -70,7 +72,8 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	distributorLeadHandler := handlers.NewDistributorLeadHandler(distributorLeadService)
 	wizardHandler   := handlers.NewWizardRecommendationHandler(wizardService)
 	eventHandler    := handlers.NewEventHandler(eventService)
-	warrantyHandler := handlers.NewWarrantyHandler(cfg.ResendAPIKey, cfg.ResendFrom)
+	warrantyHandler  := handlers.NewWarrantyHandler(cfg.ResendAPIKey, cfg.ResendFrom)
+	cartLinkHandler  := handlers.NewCartLinkHandler(cartLinkService, cfg.FrontendURL)
 
 	// ── Router ────────────────────────────────────────────────────────────────
 	router := gin.New()
@@ -120,6 +123,9 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 
 		// Garantía
 		public.POST("/warranty", warrantyHandler.Submit)
+
+		// Cart links (lectura pública para que el cliente cargue el carrito)
+		public.GET("/cart-links/:token", cartLinkHandler.Get)
 	}
 
 	// ── Rutas PROTEGIDAS — requieren JWT de cualquier usuario autenticado ─────
@@ -141,6 +147,9 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	{
 		admin.GET("/users", userHandler.ListUsers)
 		admin.DELETE("/users/:id", userHandler.DeleteUser)
+
+		// Cart links (solo admin puede crear)
+		admin.POST("/cart-links", cartLinkHandler.Create)
 
 		admin.GET("/products", productHandler.ListAdminProducts)
 		admin.POST("/products", productHandler.CreateProduct)
