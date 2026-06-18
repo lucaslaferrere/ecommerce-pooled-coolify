@@ -41,7 +41,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	userService := services.NewUserService(userRepo)
 	productService := services.NewProductService(productRepo)
 	kitService             := services.NewKitService(kitRepo)
-	cartService            := services.NewCartService(productRepo)
+	cartService            := services.NewCartService(productRepo, kitRepo)
 	orderService           := services.NewOrderService(orderRepo, productRepo)
 	distributorLeadService := services.NewDistributorLeadService(distributorLeadRepo)
 	wizardService := services.NewWizardRecommendationService(wizardRepo)
