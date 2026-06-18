@@ -42,6 +42,7 @@ func (s *CartService) ValidateCart(ctx context.Context, items []domain.CartItem)
 
 		var unitPrice float64
 		var itemName string
+		var itemType string
 		sku := item.VariantSKU
 
 		product, err := s.productRepository.GetByID(ctx, item.ProductID)
@@ -98,6 +99,7 @@ func (s *CartService) ValidateCart(ctx context.Context, items []domain.CartItem)
 			}
 			unitPrice = kit.Price
 			itemName = kit.Name
+			itemType = "kit"
 		}
 
 		validated[i] = domain.CartItem{
@@ -105,6 +107,7 @@ func (s *CartService) ValidateCart(ctx context.Context, items []domain.CartItem)
 			Name:       itemName,
 			VariantSKU: sku,
 			Quantity:   item.Quantity,
+			ItemType:   itemType,
 			UnitPrice:  unitPrice,
 		}
 		total += unitPrice * float64(item.Quantity)

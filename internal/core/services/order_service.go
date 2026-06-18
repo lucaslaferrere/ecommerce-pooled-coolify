@@ -237,6 +237,10 @@ func (s *OrderService) Checkout(ctx context.Context, userID primitive.ObjectID, 
 	var done []decremented
 
 	for _, item := range items {
+		if item.ItemType == "kit" {
+			done = append(done, decremented{item.ProductID, item.VariantSKU, item.Quantity})
+			continue
+		}
 		var decrementErr error
 		if item.VariantSKU == "" {
 			decrementErr = s.productRepository.DecrementProductStock(ctx, item.ProductID, item.Quantity)

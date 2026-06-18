@@ -11,4 +11,5 @@ type CartItem struct {
 	VariantSKU string             `bson:"variant_sku" json:"variant_sku"`
 	Quantity   int                `bson:"quantity" json:"quantity"`
 	UnitPrice  float64            `bson:"unit_price,omitempty" json:"unit_price,omitempty"`
+	ItemType   string             `bson:"item_type,omitempty" json:"item_type,omitempty"` // "product" | "kit"
 }
