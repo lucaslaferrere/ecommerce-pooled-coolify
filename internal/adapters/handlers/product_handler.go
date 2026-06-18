@@ -117,7 +117,7 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		Category:        category,
 		Brand:           brand,
 		Images:          images,
-		Variants:        variants,
+		Variants:        normalizeVariants(variants, stock),
 		Specs:           specs,
 		MainSpecs:       mainSpecs,
 		Visible:         &visibleTrue,
@@ -144,6 +144,19 @@ func parseVariantsForm(raw string) ([]domain.Variant, error) {
 		return nil, err
 	}
 	return variants, nil
+}
+
+// normalizeVariants generates SKUs and inherits product-level stock for variants that have none.
+func normalizeVariants(variants []domain.Variant, productStock int) []domain.Variant {
+	for i := range variants {
+		if variants[i].SKU == "" {
+			variants[i].SKU = fmt.Sprintf("%s-%s", variants[i].Color, variants[i].Size)
+		}
+		if variants[i].Stock == 0 && productStock > 0 {
+			variants[i].Stock = productStock
+		}
+	}
+	return variants
 }
 
 // parseSpecsForm decodifica el JSON stringificado del campo 'specs'.
@@ -399,7 +412,7 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("variants inválido: %v", err)})
 			return
 		}
-		product.Variants = variants
+		product.Variants = normalizeVariants(variants, product.Stock)
 	}
 	if form.Has("specs") {
 		specs, err := parseSpecsForm(form.Get("specs"))
