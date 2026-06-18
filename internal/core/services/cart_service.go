@@ -64,8 +64,12 @@ func (s *CartService) ValidateCart(ctx context.Context, items []domain.CartItem)
 						break
 					}
 				}
+				// Fallback: if no variant has stock set, use product-level stock
 				if first.Stock < item.Quantity {
-					return nil, ErrInsufficientStock
+					if product.Stock < item.Quantity {
+						return nil, ErrInsufficientStock
+					}
+					// Use product-level stock; variant stock will be decremented separately
 				}
 				sku = first.SKU
 				unitPrice = product.BasePrice + first.PriceAdjustment
