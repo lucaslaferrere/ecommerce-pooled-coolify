@@ -265,10 +265,16 @@ func (h *OrderHandler) UpdateAdminOrderStatus(c *gin.Context) {
 			log.Printf("post-status email: error obteniendo orden %s: %v", id.Hex(), err)
 			return
 		}
-		// Confirmación al cliente solo cuando pasa a "paid"
+		// Confirmación al cliente cuando pasa a "paid"
 		if req.Status == "paid" {
 			if err := h.emailService.SendOrderConfirmation(order); err != nil {
 				log.Printf("email confirmación orden %s: %v", id.Hex(), err)
+			}
+		}
+		// Notificación de envío al cliente cuando pasa a "shipped"
+		if req.Status == "shipped" {
+			if err := h.emailService.SendShippingNotification(order); err != nil {
+				log.Printf("email envío orden %s: %v", id.Hex(), err)
 			}
 		}
 		// Notificación a los dueños en cualquier cambio de estado
