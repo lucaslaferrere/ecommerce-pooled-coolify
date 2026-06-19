@@ -180,6 +180,9 @@ func (h *OrderHandler) Checkout(c *gin.Context) {
 		}
 	}
 
+	// Notificar a los dueños del nuevo pedido (fire-and-forget)
+	go h.emailService.SendOwnerNewOrder(order)
+
 	c.JSON(http.StatusCreated, gin.H{
 		"order":              order,
 		"init_point":         pref.InitPoint,
@@ -255,21 +258,22 @@ func (h *OrderHandler) UpdateAdminOrderStatus(c *gin.Context) {
 		}()
 	}
 
-	// Email de confirmación cuando el admin aprueba manualmente (ej: transferencia)
-	if req.Status == "paid" {
-		go func() {
-			order, err := h.orderService.GetOrder(context.Background(), id)
-			if err != nil {
-				log.Printf("email confirmación: error obteniendo orden %s: %v", id.Hex(), err)
-				return
-			}
+	// Emails post-cambio de estado (fire-and-forget)
+	go func() {
+		order, err := h.orderService.GetOrder(context.Background(), id)
+		if err != nil {
+			log.Printf("post-status email: error obteniendo orden %s: %v", id.Hex(), err)
+			return
+		}
+		// Confirmación al cliente solo cuando pasa a "paid"
+		if req.Status == "paid" {
 			if err := h.emailService.SendOrderConfirmation(order); err != nil {
 				log.Printf("email confirmación orden %s: %v", id.Hex(), err)
-			} else {
-				log.Printf("email confirmación enviado a %s (orden %s)", order.CustomerEmail, id.Hex())
 			}
-		}()
-	}
+		}
+		// Notificación a los dueños en cualquier cambio de estado
+		h.emailService.SendOwnerStatusChange(order)
+	}()
 
 	c.JSON(http.StatusOK, gin.H{"message": "estado actualizado"})
 }

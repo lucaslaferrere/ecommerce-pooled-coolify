@@ -35,7 +35,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	cartLinkRepo   := repositories.NewCartLinkRepositoryMongo(db.Collection("cart_links"))
 
 	// ── Services ─────────────────────────────────────────────────────────────
-	emailService := services.NewEmailService(cfg.ResendAPIKey, cfg.ResendFrom)
+	emailService := services.NewEmailService(cfg.ResendAPIKey, cfg.ResendFrom, cfg.OwnerEmails)
 	authService := services.NewAuthService(userRepo, cfg.JWTSecret).
 		WithPasswordReset(passwordResetRepo, emailService)
 	userService := services.NewUserService(userRepo)

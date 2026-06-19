@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -19,8 +20,9 @@ type Config struct {
 	ShutdownTimeout int    // segundos para graceful shutdown
 
 	// Resend (email)
-	ResendAPIKey string // API key de Resend
-	ResendFrom   string // Dirección "from" verificada en Resend
+	ResendAPIKey  string   // API key de Resend
+	ResendFrom    string   // Dirección "from" verificada en Resend
+	OwnerEmails   []string // Emails de los dueños que reciben notificaciones de pedidos
 
 	// Mercado Pago
 	MPAccessToken   string // Token de acceso (vacío = MP desactivado)
@@ -52,8 +54,9 @@ func Load() *Config {
 		FrontendURL:     getEnv("FRONTEND_URL", "http://localhost:5173"),
 		ShutdownTimeout: getEnvInt("SHUTDOWN_TIMEOUT_SECS", 10),
 
-		ResendAPIKey: getEnv("RESEND_API_KEY", ""),
-		ResendFrom:   getEnv("RESEND_FROM", "Pooled <noreply@pooled.com.ar>"),
+		ResendAPIKey:  getEnv("RESEND_API_KEY", ""),
+		ResendFrom:    getEnv("RESEND_FROM", "Pooled <noreply@pooled.com.ar>"),
+		OwnerEmails:   parseEmails(getEnv("OWNER_EMAILS", "")),
 
 		MPAccessToken:   getEnv("MP_ACCESS_TOKEN", ""),
 		MPWebhookSecret: getEnv("MP_WEBHOOK_SECRET", ""),
@@ -80,6 +83,16 @@ func getEnvInt(key string, defaultValue int) int {
 }
 
 // getEnv obtiene una variable de entorno o retorna un valor por defecto
+func parseEmails(raw string) []string {
+	var out []string
+	for _, e := range strings.Split(raw, ",") {
+		if e = strings.TrimSpace(e); e != "" {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 func getEnv(key string, defaultValue string) string {
 	if value, exists := os.LookupEnv(key); exists {
 		return value

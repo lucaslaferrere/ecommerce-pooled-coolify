@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -12,12 +13,13 @@ import (
 
 // EmailService envía emails transaccionales usando la API de Resend.
 type EmailService struct {
-	apiKey string
-	from   string
+	apiKey      string
+	from        string
+	OwnerEmails []string
 }
 
-func NewEmailService(apiKey, from string) *EmailService {
-	return &EmailService{apiKey: apiKey, from: from}
+func NewEmailService(apiKey, from string, ownerEmails []string) *EmailService {
+	return &EmailService{apiKey: apiKey, from: from, OwnerEmails: ownerEmails}
 }
 
 func (s *EmailService) Enabled() bool {
@@ -316,6 +318,277 @@ func buildShippingHTML(o *domain.Order) string {
 </table>
 </body>
 </html>`, orderRef, o.CustomerName, o.TrackingNumber, destino)
+}
+
+// SendOwnerNewOrder notifica a los dueños que llegó un pedido nuevo.
+func (s *EmailService) SendOwnerNewOrder(order *domain.Order) {
+	if !s.Enabled() || len(s.OwnerEmails) == 0 {
+		return
+	}
+	ref := strings.ToUpper(order.ID.Hex()[len(order.ID.Hex())-8:])
+	subject := fmt.Sprintf("🛒 Nuevo pedido #%s — %s", ref, order.CustomerName)
+	html := buildOwnerNewOrderHTML(order)
+	for _, email := range s.OwnerEmails {
+		if err := s.Send(email, subject, html); err != nil {
+			log.Printf("SendOwnerNewOrder: error enviando a %s: %v", email, err)
+		}
+	}
+}
+
+// SendOwnerStatusChange notifica a los dueños que cambió el estado de un pedido.
+func (s *EmailService) SendOwnerStatusChange(order *domain.Order) {
+	if !s.Enabled() || len(s.OwnerEmails) == 0 {
+		return
+	}
+	ref := strings.ToUpper(order.ID.Hex()[len(order.ID.Hex())-8:])
+	statusLabel := ownerStatusLabel(order.Status)
+	subject := fmt.Sprintf("📋 Pedido #%s → %s — %s", ref, statusLabel, order.CustomerName)
+	html := buildOwnerStatusChangeHTML(order)
+	for _, email := range s.OwnerEmails {
+		if err := s.Send(email, subject, html); err != nil {
+			log.Printf("SendOwnerStatusChange: error enviando a %s: %v", email, err)
+		}
+	}
+}
+
+func ownerStatusLabel(status string) string {
+	labels := map[string]string{
+		"pending":    "Pendiente",
+		"paid":       "Pagado",
+		"processing": "En proceso",
+		"shipped":    "Enviado",
+		"delivered":  "Entregado",
+		"cancelled":  "Cancelado",
+		"rejected":   "Rechazado",
+	}
+	if l, ok := labels[status]; ok {
+		return l
+	}
+	return status
+}
+
+func ownerStatusColor(status string) string {
+	colors := map[string]string{
+		"pending":    "#f59e0b",
+		"paid":       "#10b981",
+		"processing": "#3b82f6",
+		"shipped":    "#8b5cf6",
+		"delivered":  "#059669",
+		"cancelled":  "#ef4444",
+		"rejected":   "#dc2626",
+	}
+	if c, ok := colors[status]; ok {
+		return c
+	}
+	return "#6b7280"
+}
+
+// ── HTML: owner new order ─────────────────────────────────────────────────────
+
+func buildOwnerNewOrderHTML(o *domain.Order) string {
+	orderRef := strings.ToUpper(o.ID.Hex()[len(o.ID.Hex())-8:])
+
+	var itemRows string
+	for _, item := range o.Items {
+		name := item.Name
+		if name == "" {
+			name = item.ProductID.Hex()
+		}
+		sku := ""
+		if item.VariantSKU != "" {
+			sku = fmt.Sprintf(" <span style='color:#6b7280;font-size:12px;'>(%s)</span>", item.VariantSKU)
+		}
+		itemRows += fmt.Sprintf(`
+		<tr>
+			<td style="padding:8px 0;border-bottom:1px solid #f3f4f6;color:#111827;font-size:14px;">%s%s</td>
+			<td style="padding:8px 0;border-bottom:1px solid #f3f4f6;color:#6b7280;text-align:center;font-size:14px;">%d</td>
+			<td style="padding:8px 0;border-bottom:1px solid #f3f4f6;color:#111827;text-align:right;font-size:14px;">%s</td>
+		</tr>`, name, sku, item.Quantity, formatARS(item.UnitPrice*float64(item.Quantity)))
+	}
+
+	pago := o.PaymentMethod
+	switch pago {
+	case "mercadopago":
+		pago = "MercadoPago"
+	case "transferencia":
+		pago = "Transferencia bancaria"
+	}
+
+	entrega := "Retiro en local"
+	if o.DeliveryMethod != "retirar" {
+		sd := o.ShippingDetails
+		parts := []string{sd.Address, sd.City, sd.Province}
+		var filtered []string
+		for _, p := range parts {
+			if p != "" {
+				filtered = append(filtered, p)
+			}
+		}
+		entrega = strings.Join(filtered, ", ")
+		if sd.PostalCode != "" {
+			entrega += " (" + sd.PostalCode + ")"
+		}
+	}
+
+	dniRow := ""
+	if o.DniCuit != "" {
+		dniRow = fmt.Sprintf(`<tr><td style="color:#6b7280;font-size:13px;padding:3px 0;">DNI/CUIT</td><td style="color:#111827;font-size:13px;padding:3px 0;"><strong>%s</strong></td></tr>`, o.DniCuit)
+	}
+	facturaRow := ""
+	if o.FacturaA != nil {
+		facturaRow = fmt.Sprintf(`<tr><td style="color:#6b7280;font-size:13px;padding:3px 0;">Factura A</td><td style="color:#111827;font-size:13px;padding:3px 0;"><strong>%s — %s</strong></td></tr>`, o.FacturaA.RazonSocial, o.FacturaA.CUIT)
+	}
+
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:system-ui,sans-serif;">
+<table width="100%%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px;">
+<tr><td align="center">
+<table width="100%%" cellpadding="0" cellspacing="0" style="max-width:580px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.10);">
+  <tr>
+    <td style="background:#0B1F3A;padding:24px 32px;">
+      <p style="margin:0;color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:0.08em;">Notificación interna — Pooled</p>
+      <h1 style="margin:8px 0 4px;color:#ffffff;font-size:22px;">🛒 Nuevo pedido recibido</h1>
+      <p style="margin:0;color:#64748b;font-size:13px;">Pedido <strong style="color:#94a3b8;">#%s</strong></p>
+    </td>
+  </tr>
+  <tr><td style="padding:28px 32px;">
+
+    <table width="100%%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      <tr>
+        <td style="color:#6b7280;font-size:13px;padding:3px 0;width:110px;">Cliente</td>
+        <td style="color:#111827;font-size:13px;padding:3px 0;"><strong>%s</strong></td>
+      </tr>
+      <tr>
+        <td style="color:#6b7280;font-size:13px;padding:3px 0;">Email</td>
+        <td style="font-size:13px;padding:3px 0;"><a href="mailto:%s" style="color:#2563eb;">%s</a></td>
+      </tr>
+      <tr>
+        <td style="color:#6b7280;font-size:13px;padding:3px 0;">Teléfono</td>
+        <td style="color:#111827;font-size:13px;padding:3px 0;">%s</td>
+      </tr>
+      %s
+      %s
+      <tr>
+        <td style="color:#6b7280;font-size:13px;padding:3px 0;">Pago</td>
+        <td style="color:#111827;font-size:13px;padding:3px 0;"><strong>%s</strong></td>
+      </tr>
+      <tr>
+        <td style="color:#6b7280;font-size:13px;padding:3px 0;">Entrega</td>
+        <td style="color:#111827;font-size:13px;padding:3px 0;">%s</td>
+      </tr>
+    </table>
+
+    <p style="margin:0 0 8px;font-weight:600;color:#0B1F3A;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;">Productos</p>
+    <table width="100%%" cellpadding="0" cellspacing="0">
+      <tr>
+        <th style="padding:6px 0;border-bottom:2px solid #e5e7eb;text-align:left;color:#6b7280;font-weight:500;font-size:12px;">Producto</th>
+        <th style="padding:6px 0;border-bottom:2px solid #e5e7eb;text-align:center;color:#6b7280;font-weight:500;font-size:12px;">Cant.</th>
+        <th style="padding:6px 0;border-bottom:2px solid #e5e7eb;text-align:right;color:#6b7280;font-weight:500;font-size:12px;">Subtotal</th>
+      </tr>
+      %s
+      <tr>
+        <td colspan="2" style="padding:10px 0 4px;font-weight:700;color:#0B1F3A;font-size:15px;">Total</td>
+        <td style="padding:10px 0 4px;font-weight:700;color:#0B1F3A;font-size:15px;text-align:right;">%s</td>
+      </tr>
+    </table>
+
+    %s
+
+  </td></tr>
+  <tr>
+    <td style="padding:14px 32px;background:#f8fafc;border-top:1px solid #e5e7eb;text-align:center;">
+      <p style="margin:0;font-size:11px;color:#9ca3af;">Esta notificación es solo para uso interno — pooled.com.ar</p>
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`,
+		orderRef,
+		o.CustomerName,
+		o.CustomerEmail, o.CustomerEmail,
+		o.CustomerPhone,
+		dniRow, facturaRow,
+		pago, entrega,
+		itemRows,
+		formatARS(o.Total),
+		notasHTML(o),
+	)
+}
+
+// ── HTML: owner status change ─────────────────────────────────────────────────
+
+func buildOwnerStatusChangeHTML(o *domain.Order) string {
+	orderRef := strings.ToUpper(o.ID.Hex()[len(o.ID.Hex())-8:])
+	statusLabel := ownerStatusLabel(o.Status)
+	statusColor := ownerStatusColor(o.Status)
+
+	trackingRow := ""
+	if o.TrackingNumber != "" {
+		trackingRow = fmt.Sprintf(`
+		<tr>
+			<td style="color:#6b7280;font-size:13px;padding:3px 0;width:130px;">N° de seguimiento</td>
+			<td style="color:#111827;font-size:13px;padding:3px 0;"><strong>%s</strong></td>
+		</tr>`, o.TrackingNumber)
+	}
+
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:system-ui,sans-serif;">
+<table width="100%%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px;">
+<tr><td align="center">
+<table width="100%%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.10);">
+  <tr>
+    <td style="background:#0B1F3A;padding:24px 32px;">
+      <p style="margin:0;color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:0.08em;">Notificación interna — Pooled</p>
+      <h1 style="margin:8px 0 4px;color:#ffffff;font-size:22px;">📋 Estado actualizado</h1>
+      <p style="margin:0;color:#64748b;font-size:13px;">Pedido <strong style="color:#94a3b8;">#%s</strong></p>
+    </td>
+  </tr>
+  <tr><td style="padding:28px 32px;">
+
+    <div style="text-align:center;margin-bottom:28px;">
+      <span style="display:inline-block;background:%s;color:#ffffff;border-radius:20px;padding:8px 28px;font-size:16px;font-weight:700;letter-spacing:0.03em;">%s</span>
+    </div>
+
+    <table width="100%%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="color:#6b7280;font-size:13px;padding:3px 0;width:130px;">Cliente</td>
+        <td style="color:#111827;font-size:13px;padding:3px 0;"><strong>%s</strong></td>
+      </tr>
+      <tr>
+        <td style="color:#6b7280;font-size:13px;padding:3px 0;">Email</td>
+        <td style="font-size:13px;padding:3px 0;"><a href="mailto:%s" style="color:#2563eb;">%s</a></td>
+      </tr>
+      <tr>
+        <td style="color:#6b7280;font-size:13px;padding:3px 0;">Total del pedido</td>
+        <td style="color:#111827;font-size:13px;padding:3px 0;font-weight:600;">%s</td>
+      </tr>
+      %s
+    </table>
+
+  </td></tr>
+  <tr>
+    <td style="padding:14px 32px;background:#f8fafc;border-top:1px solid #e5e7eb;text-align:center;">
+      <p style="margin:0;font-size:11px;color:#9ca3af;">Esta notificación es solo para uso interno — pooled.com.ar</p>
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`,
+		orderRef,
+		statusColor, statusLabel,
+		o.CustomerName,
+		o.CustomerEmail, o.CustomerEmail,
+		formatARS(o.Total),
+		trackingRow,
+	)
 }
 
 func notasHTML(o *domain.Order) string {
