@@ -58,22 +58,25 @@ func (s *CartService) ValidateCart(ctx context.Context, items []domain.CartItem)
 				}
 				unitPrice = product.BasePrice
 			} else if sku == "" {
-				first := &product.Variants[0]
+				var found *domain.Variant
 				for j := range product.Variants {
 					if product.Variants[j].Stock >= item.Quantity {
-						first = &product.Variants[j]
+						found = &product.Variants[j]
 						break
 					}
 				}
-				// Fallback: if no variant has stock set, use product-level stock
-				if first.Stock < item.Quantity {
+				if found != nil {
+					// A variant with sufficient stock was found — use it.
+					sku = found.SKU
+					unitPrice = product.BasePrice + found.PriceAdjustment
+				} else {
+					// No variant has enough stock; fall back to product-level stock.
+					// Keep sku="" so Checkout uses DecrementProductStock (not DecrementVariantStock).
 					if product.Stock < item.Quantity {
 						return nil, ErrInsufficientStock
 					}
-					// Use product-level stock; variant stock will be decremented separately
+					unitPrice = product.BasePrice
 				}
-				sku = first.SKU
-				unitPrice = product.BasePrice + first.PriceAdjustment
 			} else {
 				var found *domain.Variant
 				for j := range product.Variants {

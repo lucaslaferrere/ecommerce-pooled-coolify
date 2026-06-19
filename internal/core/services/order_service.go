@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"ecommerce-pooled/internal/core/domain"
@@ -131,6 +132,9 @@ func (s *OrderService) CancelOrder(ctx context.Context, id primitive.ObjectID) e
 	}
 
 	for _, item := range order.Items {
+		if item.ItemType == "kit" {
+			continue
+		}
 		if item.VariantSKU == "" {
 			_ = s.productRepository.IncrementProductStock(ctx, item.ProductID, item.Quantity)
 		} else {
@@ -205,12 +209,20 @@ func (s *OrderService) ConfirmPayment(ctx context.Context, orderID primitive.Obj
 		return nil // ya procesado, respuesta idempotente
 	}
 	if order.Status == "cancelled" {
-		// Orden cancelada (expirada o cancelada manualmente): restaurar stock antes de marcar como pagada
+		// Re-decrement stock: the order was cancelled (stock was restored), but MP confirmed payment late.
 		for _, item := range order.Items {
+			if item.ItemType == "kit" {
+				continue
+			}
+			var stockErr error
 			if item.VariantSKU == "" {
-				_ = s.productRepository.DecrementProductStock(ctx, item.ProductID, item.Quantity)
+				stockErr = s.productRepository.DecrementProductStock(ctx, item.ProductID, item.Quantity)
 			} else {
-				_ = s.productRepository.DecrementVariantStock(ctx, item.ProductID, item.VariantSKU, item.Quantity)
+				stockErr = s.productRepository.DecrementVariantStock(ctx, item.ProductID, item.VariantSKU, item.Quantity)
+			}
+			if stockErr != nil {
+				log.Printf("ConfirmPayment: stock decrement failed for product %s sku=%q qty=%d: %v",
+					item.ProductID.Hex(), item.VariantSKU, item.Quantity, stockErr)
 			}
 		}
 	}
@@ -318,6 +330,9 @@ func (s *OrderService) ExpireAbandonedOrders(ctx context.Context, maxAge time.Du
 	var expired int
 	for _, order := range orders {
 		for _, item := range order.Items {
+			if item.ItemType == "kit" {
+				continue
+			}
 			if item.VariantSKU == "" {
 				_ = s.productRepository.IncrementProductStock(ctx, item.ProductID, item.Quantity)
 			} else {
