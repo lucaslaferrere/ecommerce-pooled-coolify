@@ -51,10 +51,19 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 
 // GetUser maneja GET /api/users/:id
 func (h *UserHandler) GetUser(c *gin.Context) {
+	callerID, _ := c.Get("user_id")
+	callerRole, _ := c.Get("role")
+
 	idStr := c.Param("id")
 	id, err := primitive.ObjectIDFromHex(idStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+		return
+	}
+
+	// Only the owner or an admin can fetch a user profile.
+	if callerRole.(string) != "admin" && callerID.(string) != idStr {
+		c.JSON(http.StatusForbidden, gin.H{"error": "acceso denegado"})
 		return
 	}
 
@@ -63,12 +72,12 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
 	if user == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "usuario no encontrado"})
 		return
 	}
 
+	user.PasswordHash = "" // never expose the hash
 	c.JSON(http.StatusOK, user)
 }
 
@@ -109,6 +118,9 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 
 // UpdateUser maneja PUT /api/users/:id
 func (h *UserHandler) UpdateUser(c *gin.Context) {
+	callerID, _ := c.Get("user_id")
+	callerRole, _ := c.Get("role")
+
 	idStr := c.Param("id")
 	id, err := primitive.ObjectIDFromHex(idStr)
 	if err != nil {
@@ -116,19 +128,39 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	var user domain.User
-	if err := c.ShouldBindJSON(&user); err != nil {
+	// Only the owner or an admin can update a user profile.
+	if callerRole.(string) != "admin" && callerID.(string) != idStr {
+		c.JSON(http.StatusForbidden, gin.H{"error": "acceso denegado"})
+		return
+	}
+
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	user.ID = id
-	if err := h.userService.UpdateUser(c.Request.Context(), &user); err != nil {
+	// Fetch existing user to preserve role and other fields.
+	existing, err := h.userService.GetUser(c.Request.Context(), id)
+	if err != nil || existing == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "usuario no encontrado"})
+		return
+	}
+
+	if req.Email != "" {
+		existing.Email = req.Email
+	}
+	// Role is intentionally not updatable through this endpoint.
+
+	if err := h.userService.UpdateUser(c.Request.Context(), existing); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, user)
+	existing.PasswordHash = ""
+	c.JSON(http.StatusOK, existing)
 }
 
 // DeleteUser maneja DELETE /api/users/:id

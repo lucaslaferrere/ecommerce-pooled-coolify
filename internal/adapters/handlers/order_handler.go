@@ -361,15 +361,38 @@ func (h *OrderHandler) UpdateOrderStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "estado actualizado"})
 }
 
-// CancelOrder maneja PUT /api/orders/:id/cancel
+// CancelOrder maneja PATCH /orders/:id/cancel
 func (h *OrderHandler) CancelOrder(c *gin.Context) {
+	userIDStr, ok := c.Get("user_id")
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "autenticación requerida"})
+		return
+	}
+	userID, err := primitive.ObjectIDFromHex(userIDStr.(string))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "token inválido"})
+		return
+	}
+
 	id, err := primitive.ObjectIDFromHex(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
 		return
 	}
+
+	// Verify ownership before cancelling
+	order, err := h.orderService.GetOrder(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "orden no encontrada"})
+		return
+	}
+	if order.UserID != userID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "acceso denegado"})
+		return
+	}
+
 	if err := h.orderService.CancelOrder(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "orden cancelada"})

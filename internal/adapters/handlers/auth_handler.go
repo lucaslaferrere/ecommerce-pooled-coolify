@@ -49,11 +49,8 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	if req.Role == "" {
-		req.Role = "client"
-	}
-
-	user, err := h.authService.Register(c.Request.Context(), req.Email, req.Password, req.Role)
+	// Always register as client — role cannot be set by the caller.
+	user, err := h.authService.Register(c.Request.Context(), req.Email, req.Password, "client")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
