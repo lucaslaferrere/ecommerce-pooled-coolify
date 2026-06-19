@@ -151,6 +151,17 @@ func (s *OrderService) ListOrders(ctx context.Context, skip int64, limit int64) 
 	return s.orderRepository.List(ctx, skip, limit)
 }
 
+func (s *OrderService) ListOrdersFiltered(ctx context.Context, status string, skip int64, limit int64) ([]*domain.Order, error) {
+	if status == "" {
+		return s.orderRepository.List(ctx, skip, limit)
+	}
+	return s.orderRepository.GetByStatus(ctx, status, skip, limit)
+}
+
+func (s *OrderService) CountOrders(ctx context.Context, status string) (int64, error) {
+	return s.orderRepository.Count(ctx, status)
+}
+
 // SetPreference asocia un ID de preferencia de Mercado Pago a una orden existente.
 // Llamado por el handler de checkout después de crear la preferencia en MP.
 func (s *OrderService) SetPreference(ctx context.Context, id primitive.ObjectID, preferenceID string) error {

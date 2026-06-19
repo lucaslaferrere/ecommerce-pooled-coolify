@@ -40,4 +40,7 @@ type OrderRepository interface {
 
 	// FindPendingOlderThan devuelve órdenes en estado "pending" creadas antes de `before`.
 	FindPendingOlderThan(ctx context.Context, before time.Time) ([]*domain.Order, error)
+
+	// Count devuelve el total de órdenes, opcionalmente filtrado por status.
+	Count(ctx context.Context, status string) (int64, error)
 }

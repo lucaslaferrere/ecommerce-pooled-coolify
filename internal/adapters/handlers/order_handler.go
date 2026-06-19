@@ -337,15 +337,37 @@ func (h *OrderHandler) DeleteOrder(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "orden eliminada"})
 }
 
-// ListAllOrders maneja GET /api/orders/admin/list (solo admin)
+// ListAllOrders maneja GET /api/v1/admin/orders
+// Query params: page (1-based), limit (default 20), status (optional)
 func (h *OrderHandler) ListAllOrders(c *gin.Context) {
-	skip, _ := strconv.ParseInt(c.DefaultQuery("skip", "0"), 10, 64)
-	limit, _ := strconv.ParseInt(c.DefaultQuery("limit", "10"), 10, 64)
+	page, _ := strconv.ParseInt(c.DefaultQuery("page", "1"), 10, 64)
+	limit, _ := strconv.ParseInt(c.DefaultQuery("limit", "20"), 10, 64)
+	status := c.Query("status")
 
-	orders, err := h.orderService.ListOrders(c.Request.Context(), skip, limit)
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	skip := (page - 1) * limit
+
+	orders, err := h.orderService.ListOrdersFiltered(c.Request.Context(), status, skip, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"orders": orders, "total": len(orders)})
+
+	total, err := h.orderService.CountOrders(c.Request.Context(), status)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"orders": orders,
+		"total":  total,
+		"page":   page,
+		"limit":  limit,
+	})
 }

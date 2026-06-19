@@ -178,6 +178,15 @@ func (r *OrderRepositoryMongo) FindPendingOlderThan(ctx context.Context, before 
 	return orders, nil
 }
 
+// Count devuelve el total de órdenes, opcionalmente filtrado por status.
+func (r *OrderRepositoryMongo) Count(ctx context.Context, status string) (int64, error) {
+	filter := bson.M{}
+	if status != "" {
+		filter["status"] = status
+	}
+	return r.collection.CountDocuments(ctx, filter)
+}
+
 // GetByStatus obtiene órdenes filtradas por estado con paginación
 func (r *OrderRepositoryMongo) GetByStatus(ctx context.Context, status string, skip int64, limit int64) ([]*domain.Order, error) {
 	opts := options.Find().
