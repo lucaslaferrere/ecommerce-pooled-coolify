@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 
@@ -12,6 +13,54 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
+
+// ── Shipping & discount calculations (server-side; mirrors shipping.ts) ──────
+
+const (
+	shippingBaseAMBA         = 9_000.0
+	shippingFreeThreshold    = 1_000_000.0
+	transferDiscountRate     = 0.035
+)
+
+var provinceZones = map[string]string{
+	"CABA": "Z1", "Buenos Aires (GBA)": "Z1",
+	"Buenos Aires (interior)": "Z2", "La Pampa": "Z2",
+	"Córdoba": "Z3", "Santa Fe": "Z3", "Entre Ríos": "Z3",
+	"Mendoza": "Z4", "San Juan": "Z4", "San Luis": "Z4",
+	"Tucumán": "Z5", "Salta": "Z5", "Jujuy": "Z5",
+	"Santiago del Estero": "Z5", "Catamarca": "Z5", "La Rioja": "Z5",
+	"Misiones": "Z5", "Corrientes": "Z5", "Chaco": "Z5", "Formosa": "Z5",
+	"Neuquén": "Z6", "Río Negro": "Z6", "Chubut": "Z6", "Santa Cruz": "Z6",
+	"Tierra del Fuego": "Z7",
+}
+
+var zoneMultipliers = map[string]float64{
+	"Z1": 1.00, "Z2": 1.15, "Z3": 1.30, "Z4": 1.55,
+	"Z5": 1.80, "Z6": 2.20, "Z7": 2.90,
+}
+
+// serverCalcShipping replicates the frontend calcShipping(province, 1kg, domicilio, subtotal).
+func serverCalcShipping(province, deliveryMethod string, subtotal float64) float64 {
+	if deliveryMethod == "retirar" || province == "" {
+		return 0
+	}
+	zoneKey, ok := provinceZones[province]
+	if !ok {
+		return 0
+	}
+	if subtotal >= shippingFreeThreshold {
+		return 0
+	}
+	return math.Round(shippingBaseAMBA * zoneMultipliers[zoneKey])
+}
+
+// serverCalcDiscount computes the transfer discount server-side.
+func serverCalcDiscount(subtotal float64, paymentMethod string) float64 {
+	if paymentMethod == "transferencia" {
+		return math.Round(subtotal * transferDiscountRate)
+	}
+	return 0
+}
 
 // OrderHandler maneja las peticiones HTTP relacionadas con órdenes
 type OrderHandler struct {
@@ -43,22 +92,21 @@ type FacturaARequest struct {
 }
 
 // checkoutRequest es el payload que envía el frontend al hacer checkout.
+// Nota: shipping_cost y discount NO se aceptan del cliente — se calculan server-side.
 type checkoutRequest struct {
-	Items           []domain.CartItem `json:"items" binding:"required,min=1"`
-	CustomerName    string            `json:"customer_name" binding:"required"`
-	CustomerEmail   string            `json:"customer_email" binding:"required,email"`
-	CustomerPhone   string            `json:"customer_phone" binding:"required"`
-	DniCuit         string            `json:"dni_cuit"`
-	ShippingAddress string            `json:"shipping_address"`
-	ShippingCity    string            `json:"shipping_city"`
-	ShippingProvince string           `json:"shipping_province"`
-	ShippingZip     string            `json:"shipping_zip"`
-	ShippingCost    float64           `json:"shipping_cost"`
-	Discount        float64           `json:"discount"`
-	Notes           string            `json:"notes"`
-	PaymentMethod   string            `json:"payment_method"`
-	DeliveryMethod  string            `json:"delivery_method"`
-	FacturaA        *FacturaARequest  `json:"factura_a"`
+	Items            []domain.CartItem `json:"items" binding:"required,min=1"`
+	CustomerName     string            `json:"customer_name" binding:"required"`
+	CustomerEmail    string            `json:"customer_email" binding:"required,email"`
+	CustomerPhone    string            `json:"customer_phone" binding:"required"`
+	DniCuit          string            `json:"dni_cuit"`
+	ShippingAddress  string            `json:"shipping_address"`
+	ShippingCity     string            `json:"shipping_city"`
+	ShippingProvince string            `json:"shipping_province"`
+	ShippingZip      string            `json:"shipping_zip"`
+	Notes            string            `json:"notes"`
+	PaymentMethod    string            `json:"payment_method"`
+	DeliveryMethod   string            `json:"delivery_method"`
+	FacturaA         *FacturaARequest  `json:"factura_a"`
 }
 
 // Checkout maneja POST /api/v1/checkout
@@ -103,8 +151,12 @@ func (h *OrderHandler) Checkout(c *gin.Context) {
 		return
 	}
 
+	// Calcular envío y descuento server-side (nunca confiar en valores del cliente)
+	shippingCost := serverCalcShipping(req.ShippingProvince, req.DeliveryMethod, cart.Total)
+	discount := serverCalcDiscount(cart.Total, req.PaymentMethod)
+
 	// Paso 2: descontar stock y persistir la orden (estado: "pending")
-	order, err := h.orderService.Checkout(c.Request.Context(), userID, cart.Items, sd, req.CustomerName, req.CustomerEmail, req.CustomerPhone, req.DniCuit, req.Notes, req.PaymentMethod, req.DeliveryMethod, facturaA, req.ShippingCost, req.Discount)
+	order, err := h.orderService.Checkout(c.Request.Context(), userID, cart.Items, sd, req.CustomerName, req.CustomerEmail, req.CustomerPhone, req.DniCuit, req.Notes, req.PaymentMethod, req.DeliveryMethod, facturaA, shippingCost, discount)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
