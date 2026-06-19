@@ -36,6 +36,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 
 	// ── Services ─────────────────────────────────────────────────────────────
 	emailService := services.NewEmailService(cfg.ResendAPIKey, cfg.ResendFrom, cfg.OwnerEmails)
+	log.Printf("[BOOT] owner emails configurados: %d → %v", len(cfg.OwnerEmails), cfg.OwnerEmails)
 	authService := services.NewAuthService(userRepo, cfg.JWTSecret).
 		WithPasswordReset(passwordResetRepo, emailService)
 	userService := services.NewUserService(userRepo)
