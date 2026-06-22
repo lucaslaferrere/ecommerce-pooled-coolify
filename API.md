@@ -552,6 +552,30 @@ Uso exclusivo de MercadoPago. Valida firma HMAC-SHA256 si la variable `MP_WEBHOO
 
 ---
 
+## Notificaciones de email
+
+### Al cliente
+| Evento | Asunto |
+|--------|--------|
+| Checkout completado | `✅ Pedido confirmado #XXXXXXXX — Pooled` |
+| Admin cambia estado a `paid` | `✅ Pedido confirmado #XXXXXXXX — Pooled` |
+| Admin cambia estado a `shipped` | `🚚 Tu pedido #XXXXXXXX está en camino — Pooled` (incluye número de tracking) |
+
+### A los dueños (notificación interna)
+| Evento | Asunto |
+|--------|--------|
+| Nuevo pedido (cualquier método de pago) | `🛒 Nuevo pedido #XXXXXXXX — Nombre Cliente` |
+| Admin cambia cualquier estado | `📋 Pedido #XXXXXXXX → [Estado] — Nombre Cliente` |
+
+Los emails a dueños se envían a todos los destinatarios configurados en la variable de entorno `OWNER_EMAILS` (lista separada por comas).
+
+**Variable de entorno requerida:**
+```
+OWNER_EMAILS=admin@ejemplo.com,otro@ejemplo.com
+```
+
+---
+
 ## Notas para integración con CRM
 
 - Usar `GET /admin/orders?status=paid` para obtener pedidos confirmados listos para procesar.
