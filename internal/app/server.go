@@ -33,6 +33,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	wizardRepo := repositories.NewWizardRecommendationRepositoryMongo(db.Collection("wizard_recommendations"))
 	eventRepo      := repositories.NewEventRepositoryMongo(db.Collection("events"))
 	cartLinkRepo   := repositories.NewCartLinkRepositoryMongo(db.Collection("cart_links"))
+	couponRepo     := repositories.NewCouponRepositoryMongo(db.Collection("coupons"))
 
 	// ── Services ─────────────────────────────────────────────────────────────
 	emailService := services.NewEmailService(cfg.ResendAPIKey, cfg.ResendFrom, cfg.OwnerEmails)
@@ -48,6 +49,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	wizardService := services.NewWizardRecommendationService(wizardRepo)
 	eventService     := services.NewEventService(eventRepo, orderRepo)
 	cartLinkService  := services.NewCartLinkService(cartLinkRepo)
+	couponService    := services.NewCouponService(couponRepo)
 	imageStorage := services.NewLocalImageStorage("./uploads", cfg.AppURL+"/uploads")
 
 	paymentService, err := services.NewPaymentService(
@@ -68,7 +70,8 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	userHandler := handlers.NewUserHandler(userService)
 	productHandler := handlers.NewProductHandler(productService, imageStorage)
 	kitHandler             := handlers.NewKitHandler(kitService, imageStorage)
-	orderHandler           := handlers.NewOrderHandler(orderService, cartService, paymentService, emailService)
+	couponHandler          := handlers.NewCouponHandler(couponService)
+	orderHandler           := handlers.NewOrderHandler(orderService, cartService, paymentService, emailService, couponService)
 	webhookHandler         := handlers.NewWebhookHandler(paymentService, orderService, emailService, cfg.MPWebhookSecret)
 	distributorLeadHandler := handlers.NewDistributorLeadHandler(distributorLeadService)
 	wizardHandler   := handlers.NewWizardRecommendationHandler(wizardService)
@@ -129,6 +132,9 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 
 		// Cart links (lectura pública para que el cliente cargue el carrito)
 		public.GET("/cart-links/:token", cartLinkHandler.Get)
+
+		// Cupones (validación pública desde el checkout)
+		public.POST("/coupons/validate", couponHandler.Validate)
 	}
 
 	// ── Rutas PROTEGIDAS — requieren JWT de cualquier usuario autenticado ─────
@@ -168,6 +174,11 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		admin.PATCH("/kits/:id/visibility", kitHandler.SetKitVisibility)
 		admin.PATCH("/kits/:id/sort-order", kitHandler.SetKitSortOrder)
 		admin.DELETE("/kits/:id", kitHandler.DeleteKit)
+
+		admin.GET("/coupons", couponHandler.List)
+		admin.POST("/coupons", couponHandler.Create)
+		admin.PUT("/coupons/:id", couponHandler.Update)
+		admin.DELETE("/coupons/:id", couponHandler.Delete)
 
 		admin.GET("/analytics", eventHandler.GetAnalytics)
 		admin.GET("/traffic", eventHandler.GetTraffic)

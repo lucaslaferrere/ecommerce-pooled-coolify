@@ -234,7 +234,7 @@ func (s *OrderService) ConfirmPayment(ctx context.Context, orderID primitive.Obj
 
 // Checkout descuenta stock atómicamente y crea la orden. Recibe ítems ya validados
 // (con UnitPrice calculado) provenientes de CartService.ValidateCart.
-func (s *OrderService) Checkout(ctx context.Context, userID primitive.ObjectID, items []domain.CartItem, shipping domain.ShippingDetails, customerName, customerEmail, customerPhone, dniCuit, notes, paymentMethod, deliveryMethod string, facturaA *domain.FacturaA, shippingCost, discount float64) (*domain.Order, error) {
+func (s *OrderService) Checkout(ctx context.Context, userID primitive.ObjectID, items []domain.CartItem, shipping domain.ShippingDetails, customerName, customerEmail, customerPhone, dniCuit, notes, paymentMethod, deliveryMethod string, facturaA *domain.FacturaA, shippingCost, discount, couponDiscount float64, couponCode string) (*domain.Order, error) {
 	if userID.IsZero() {
 		return nil, errors.New("ID de usuario requerido")
 	}
@@ -246,7 +246,7 @@ func (s *OrderService) Checkout(ctx context.Context, userID primitive.ObjectID, 
 	for _, item := range items {
 		subtotal += item.UnitPrice * float64(item.Quantity)
 	}
-	total := subtotal + shippingCost - discount
+	total := subtotal + shippingCost - discount - couponDiscount
 	if total < 0 {
 		total = 0
 	}
@@ -299,6 +299,8 @@ func (s *OrderService) Checkout(ctx context.Context, userID primitive.ObjectID, 
 		ShippingDetails: shipping,
 		ShippingCost:    shippingCost,
 		Discount:        discount,
+		CouponCode:      couponCode,
+		CouponDiscount:  couponDiscount,
 		FacturaA:        facturaA,
 		CreatedAt:       now,
 		UpdatedAt:       now,

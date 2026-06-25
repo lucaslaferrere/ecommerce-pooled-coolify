@@ -68,6 +68,7 @@ type OrderHandler struct {
 	cartService    *services.CartService
 	paymentService *services.PaymentService
 	emailService   *services.EmailService
+	couponService  *services.CouponService
 }
 
 // NewOrderHandler crea una nueva instancia de OrderHandler
@@ -76,12 +77,14 @@ func NewOrderHandler(
 	cartService *services.CartService,
 	paymentService *services.PaymentService,
 	emailService *services.EmailService,
+	couponService *services.CouponService,
 ) *OrderHandler {
 	return &OrderHandler{
 		orderService:   orderService,
 		cartService:    cartService,
 		paymentService: paymentService,
 		emailService:   emailService,
+		couponService:  couponService,
 	}
 }
 
@@ -106,6 +109,7 @@ type checkoutRequest struct {
 	Notes            string            `json:"notes"`
 	PaymentMethod    string            `json:"payment_method"`
 	DeliveryMethod   string            `json:"delivery_method"`
+	CouponCode       string            `json:"coupon_code"`
 	FacturaA         *FacturaARequest  `json:"factura_a"`
 }
 
@@ -155,8 +159,21 @@ func (h *OrderHandler) Checkout(c *gin.Context) {
 	shippingCost := serverCalcShipping(req.ShippingProvince, req.DeliveryMethod, cart.Total)
 	discount := serverCalcDiscount(cart.Total, req.PaymentMethod)
 
+	// Validar cupón si fue enviado
+	var couponCode string
+	var couponDiscount float64
+	if req.CouponCode != "" {
+		coupon, err := h.couponService.Validate(c.Request.Context(), req.CouponCode)
+		if err != nil {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Cupón inválido: " + err.Error()})
+			return
+		}
+		couponCode = coupon.Code
+		couponDiscount = services.ApplyCouponDiscount(cart.Total, coupon.DiscountPercent)
+	}
+
 	// Paso 2: descontar stock y persistir la orden (estado: "pending")
-	order, err := h.orderService.Checkout(c.Request.Context(), userID, cart.Items, sd, req.CustomerName, req.CustomerEmail, req.CustomerPhone, req.DniCuit, req.Notes, req.PaymentMethod, req.DeliveryMethod, facturaA, shippingCost, discount)
+	order, err := h.orderService.Checkout(c.Request.Context(), userID, cart.Items, sd, req.CustomerName, req.CustomerEmail, req.CustomerPhone, req.DniCuit, req.Notes, req.PaymentMethod, req.DeliveryMethod, facturaA, shippingCost, discount, couponDiscount, couponCode)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
