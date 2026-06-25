@@ -105,6 +105,28 @@ func (s *PaymentService) CreatePreference(ctx context.Context, order *domain.Ord
 		}
 	}
 
+	// Agregar envío como ítem separado para que MP lo incluya en el total
+	if order.ShippingCost > 0 {
+		items = append(items, preference.ItemRequest{
+			ID:         "shipping",
+			Title:      "Costo de envío",
+			Quantity:   1,
+			UnitPrice:  order.ShippingCost,
+			CurrencyID: s.currencyID,
+		})
+	}
+
+	// Aplicar descuento de cupón si corresponde
+	if order.CouponDiscount > 0 {
+		items = append(items, preference.ItemRequest{
+			ID:        "coupon-" + order.CouponCode,
+			Title:     "Descuento cupón " + order.CouponCode,
+			Quantity:  1,
+			UnitPrice: -order.CouponDiscount,
+			CurrencyID: s.currencyID,
+		})
+	}
+
 	req := preference.Request{
 		Items:             items,
 		ExternalReference: order.ID.Hex(),
