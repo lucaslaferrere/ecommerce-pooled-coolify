@@ -48,9 +48,6 @@ func serverCalcShipping(province, deliveryMethod string, subtotal float64) float
 	if !ok {
 		return 0
 	}
-	if subtotal >= shippingFreeThreshold {
-		return 0
-	}
 	return math.Round(shippingBaseAMBA * zoneMultipliers[zoneKey])
 }
 
