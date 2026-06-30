@@ -49,7 +49,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	wizardService := services.NewWizardRecommendationService(wizardRepo)
 	eventService     := services.NewEventService(eventRepo, orderRepo)
 	cartLinkService  := services.NewCartLinkService(cartLinkRepo)
-	couponService    := services.NewCouponService(couponRepo)
+	couponService    := services.NewCouponService(couponRepo, orderRepo)
 	imageStorage := services.NewLocalImageStorage("./uploads", cfg.AppURL+"/uploads")
 
 	paymentService, err := services.NewPaymentService(

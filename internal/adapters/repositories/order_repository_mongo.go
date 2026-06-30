@@ -23,6 +23,28 @@ func NewOrderRepositoryMongo(collection *mongo.Collection) *OrderRepositoryMongo
 	return &OrderRepositoryMongo{collection: collection}
 }
 
+// paidOrderStatuses son los estados que cuentan como una orden concretada.
+// Una orden pending o cancelled no consume usos de cupón.
+var paidOrderStatuses = bson.A{"paid", "processing", "shipped", "delivered"}
+
+// CountPaidByCoupon cuenta cuántas órdenes pagadas usaron un cupón (límite total).
+func (r *OrderRepositoryMongo) CountPaidByCoupon(ctx context.Context, code string) (int64, error) {
+	return r.collection.CountDocuments(ctx, bson.M{
+		"coupon_code": code,
+		"status":      bson.M{"$in": paidOrderStatuses},
+	})
+}
+
+// CountPaidByCouponAndUser cuenta cuántas órdenes pagadas de un usuario usaron un
+// cupón (límite por cliente).
+func (r *OrderRepositoryMongo) CountPaidByCouponAndUser(ctx context.Context, code string, userID primitive.ObjectID) (int64, error) {
+	return r.collection.CountDocuments(ctx, bson.M{
+		"coupon_code": code,
+		"user_id":     userID,
+		"status":      bson.M{"$in": paidOrderStatuses},
+	})
+}
+
 // Create crea una nueva orden en la base de datos
 func (r *OrderRepositoryMongo) Create(ctx context.Context, order *domain.Order) error {
 	if order == nil {

@@ -30,7 +30,9 @@ func (h *CouponHandler) Validate(c *gin.Context) {
 		return
 	}
 
-	coupon, err := h.svc.Validate(c.Request.Context(), req.Code)
+	// Validación pública (sin sesión): solo verifica el límite total.
+	// El límite por cliente se hace cumplir en el checkout.
+	coupon, err := h.svc.ValidateForUser(c.Request.Context(), req.Code, primitive.NilObjectID)
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrCouponNotFound):
@@ -39,6 +41,8 @@ func (h *CouponHandler) Validate(c *gin.Context) {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Este cupón no está activo"})
 		case errors.Is(err, services.ErrCouponExpired):
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Este cupón está vencido"})
+		case errors.Is(err, services.ErrCouponMaxUses):
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Este cupón ya alcanzó su límite de usos"})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		}
@@ -67,6 +71,8 @@ func (h *CouponHandler) Create(c *gin.Context) {
 		Code            string     `json:"code"             binding:"required"`
 		DiscountPercent float64    `json:"discount_percent" binding:"required,gt=0,lte=100"`
 		Active          bool       `json:"active"`
+		MaxUses         int        `json:"max_uses"`
+		MaxUsesPerUser  int        `json:"max_uses_per_user"`
 		ExpiresAt       *time.Time `json:"expires_at"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -78,6 +84,8 @@ func (h *CouponHandler) Create(c *gin.Context) {
 		Code:            req.Code,
 		DiscountPercent: req.DiscountPercent,
 		Active:          req.Active,
+		MaxUses:         req.MaxUses,
+		MaxUsesPerUser:  req.MaxUsesPerUser,
 		ExpiresAt:       req.ExpiresAt,
 	}
 	if err := h.svc.Create(c.Request.Context(), coupon); err != nil {
@@ -99,6 +107,8 @@ func (h *CouponHandler) Update(c *gin.Context) {
 		Code            string     `json:"code"`
 		DiscountPercent float64    `json:"discount_percent"`
 		Active          bool       `json:"active"`
+		MaxUses         int        `json:"max_uses"`
+		MaxUsesPerUser  int        `json:"max_uses_per_user"`
 		ExpiresAt       *time.Time `json:"expires_at"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -111,6 +121,8 @@ func (h *CouponHandler) Update(c *gin.Context) {
 		Code:            req.Code,
 		DiscountPercent: req.DiscountPercent,
 		Active:          req.Active,
+		MaxUses:         req.MaxUses,
+		MaxUsesPerUser:  req.MaxUsesPerUser,
 		ExpiresAt:       req.ExpiresAt,
 	}
 	if err := h.svc.Update(c.Request.Context(), coupon); err != nil {

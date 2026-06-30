@@ -160,7 +160,7 @@ func (h *OrderHandler) Checkout(c *gin.Context) {
 	var couponCode string
 	var couponDiscount float64
 	if req.CouponCode != "" {
-		coupon, err := h.couponService.Validate(c.Request.Context(), req.CouponCode)
+		coupon, err := h.couponService.ValidateForUser(c.Request.Context(), req.CouponCode, userID)
 		if err != nil {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Cupón inválido: " + err.Error()})
 			return
