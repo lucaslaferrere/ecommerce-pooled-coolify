@@ -66,7 +66,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	}
 
 	// ── Handlers ─────────────────────────────────────────────────────────────
-	authHandler := handlers.NewAuthHandler(authService)
+	authHandler := handlers.NewAuthHandler(authService, emailService)
 	userHandler := handlers.NewUserHandler(userService)
 	productHandler := handlers.NewProductHandler(productService, imageStorage)
 	kitHandler             := handlers.NewKitHandler(kitService, imageStorage)

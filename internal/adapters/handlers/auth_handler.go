@@ -11,13 +11,15 @@ import (
 
 // AuthHandler maneja las peticiones HTTP relacionadas con autenticación
 type AuthHandler struct {
-	authService *services.AuthService
+	authService  *services.AuthService
+	emailService *services.EmailService
 }
 
 // NewAuthHandler crea una nueva instancia de AuthHandler
-func NewAuthHandler(authService *services.AuthService) *AuthHandler {
+func NewAuthHandler(authService *services.AuthService, emailService *services.EmailService) *AuthHandler {
 	return &AuthHandler{
-		authService: authService,
+		authService:  authService,
+		emailService: emailService,
 	}
 }
 
@@ -54,6 +56,11 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Notificar a los dueños del nuevo registro (fire-and-forget)
+	if h.emailService != nil {
+		go h.emailService.SendOwnerNewUser(user)
 	}
 
 	c.JSON(http.StatusCreated, gin.H{

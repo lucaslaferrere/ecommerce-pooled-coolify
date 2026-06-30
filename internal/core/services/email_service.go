@@ -351,6 +351,53 @@ func (s *EmailService) SendOwnerStatusChange(order *domain.Order) {
 	}
 }
 
+// SendOwnerNewUser notifica a los dueños que se registró un nuevo usuario.
+func (s *EmailService) SendOwnerNewUser(user *domain.User) {
+	if !s.Enabled() || len(s.OwnerEmails) == 0 {
+		return
+	}
+	subject := fmt.Sprintf("👤 Nuevo registro — %s", user.Email)
+	html := buildOwnerNewUserHTML(user)
+	for _, email := range s.OwnerEmails {
+		if err := s.Send(email, subject, html); err != nil {
+			log.Printf("SendOwnerNewUser: error enviando a %s: %v", email, err)
+		}
+	}
+}
+
+func buildOwnerNewUserHTML(u *domain.User) string {
+	registered := u.CreatedAt.Format("02/01/2006 15:04")
+	return fmt.Sprintf(`
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="background-color:#f3f4f6;padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
+        <tr><td style="background-color:#0ea5e9;padding:24px 32px;">
+          <h1 style="margin:0;color:#ffffff;font-size:18px;font-weight:600;">👤 Nuevo usuario registrado</h1>
+        </td></tr>
+        <tr><td style="padding:28px 32px;">
+          <p style="margin:0 0 16px;color:#374151;font-size:14px;">Se registró una nueva persona en la tienda.</p>
+          <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="font-size:14px;color:#111827;">
+            <tr>
+              <td style="padding:8px 0;color:#6b7280;">Email</td>
+              <td style="padding:8px 0;text-align:right;font-weight:600;">%s</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;color:#6b7280;border-top:1px solid #f3f4f6;">Fecha de registro</td>
+              <td style="padding:8px 0;text-align:right;font-weight:600;border-top:1px solid #f3f4f6;">%s</td>
+            </tr>
+          </table>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`, u.Email, registered)
+}
+
 func ownerStatusLabel(status string) string {
 	labels := map[string]string{
 		"pending":    "Pendiente",

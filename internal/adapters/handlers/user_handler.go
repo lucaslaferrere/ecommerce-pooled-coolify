@@ -110,6 +110,11 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 		return
 	}
 
+	// Nunca exponer el hash de contraseña en el listado.
+	for i := range users {
+		users[i].PasswordHash = ""
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"users": users,
 		"total": len(users),
