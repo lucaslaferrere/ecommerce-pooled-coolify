@@ -45,6 +45,39 @@ func (r *OrderRepositoryMongo) CountPaidByCouponAndUser(ctx context.Context, cod
 	})
 }
 
+// CountPaidGroupedByCoupon devuelve un mapa coupon_code → cantidad de órdenes
+// pagadas, en una sola agregación. Se usa para mostrar el contador en el admin.
+func (r *OrderRepositoryMongo) CountPaidGroupedByCoupon(ctx context.Context) (map[string]int64, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{
+			"coupon_code": bson.M{"$nin": bson.A{nil, ""}},
+			"status":      bson.M{"$in": paidOrderStatuses},
+		}}},
+		{{Key: "$group", Value: bson.M{
+			"_id":   "$coupon_code",
+			"count": bson.M{"$sum": 1},
+		}}},
+	}
+	cur, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+
+	out := make(map[string]int64)
+	for cur.Next(ctx) {
+		var row struct {
+			Code  string `bson:"_id"`
+			Count int64  `bson:"count"`
+		}
+		if err := cur.Decode(&row); err != nil {
+			return nil, err
+		}
+		out[row.Code] = row.Count
+	}
+	return out, cur.Err()
+}
+
 // Create crea una nueva orden en la base de datos
 func (r *OrderRepositoryMongo) Create(ctx context.Context, order *domain.Order) error {
 	if order == nil {

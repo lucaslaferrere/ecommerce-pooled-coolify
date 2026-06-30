@@ -19,4 +19,8 @@ type Coupon struct {
 	ExpiresAt       *time.Time         `bson:"expires_at,omitempty" json:"expires_at,omitempty"`
 	CreatedAt       time.Time          `bson:"created_at"         json:"created_at"`
 	UpdatedAt       time.Time          `bson:"updated_at"         json:"updated_at"`
+
+	// UsedCount es un campo calculado (no se persiste): cuántas órdenes pagadas
+	// usaron este cupón. Se completa al listar para mostrarlo en el admin.
+	UsedCount int `bson:"-" json:"used_count"`
 }

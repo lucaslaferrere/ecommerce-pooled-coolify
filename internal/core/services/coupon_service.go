@@ -26,6 +26,7 @@ var (
 type CouponUsageCounter interface {
 	CountPaidByCoupon(ctx context.Context, code string) (int64, error)
 	CountPaidByCouponAndUser(ctx context.Context, code string, userID primitive.ObjectID) (int64, error)
+	CountPaidGroupedByCoupon(ctx context.Context) (map[string]int64, error)
 }
 
 type CouponService struct {
@@ -91,7 +92,19 @@ func ApplyCouponDiscount(subtotal, discountPercent float64) float64 {
 }
 
 func (s *CouponService) List(ctx context.Context) ([]domain.Coupon, error) {
-	return s.repo.List(ctx)
+	coupons, err := s.repo.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// Enriquecer cada cupón con su cantidad de usos (órdenes pagadas).
+	usage, err := s.counter.CountPaidGroupedByCoupon(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range coupons {
+		coupons[i].UsedCount = int(usage[coupons[i].Code])
+	}
+	return coupons, nil
 }
 
 func (s *CouponService) Create(ctx context.Context, c *domain.Coupon) error {
