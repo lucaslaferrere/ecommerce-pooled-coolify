@@ -35,6 +35,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	cartLinkRepo   := repositories.NewCartLinkRepositoryMongo(db.Collection("cart_links"))
 	couponRepo     := repositories.NewCouponRepositoryMongo(db.Collection("coupons"))
 	settingRepo    := repositories.NewSettingRepositoryMongo(db.Collection("settings"))
+	cartRepo       := repositories.NewCartRepositoryMongo(db.Collection("carts"))
 
 	// ── Services ─────────────────────────────────────────────────────────────
 	emailService := services.NewEmailService(cfg.ResendAPIKey, cfg.ResendFrom, cfg.OwnerEmails)
@@ -52,6 +53,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	cartLinkService  := services.NewCartLinkService(cartLinkRepo)
 	couponService    := services.NewCouponService(couponRepo, orderRepo)
 	settingService := services.NewSettingService(settingRepo)
+	cartStorageService := services.NewCartStorageService(cartRepo)
 	imageStorage := services.NewLocalImageStorage("./uploads", cfg.AppURL+"/uploads")
 
 	paymentService, err := services.NewPaymentService(
@@ -80,7 +82,8 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	wizardHandler   := handlers.NewWizardRecommendationHandler(wizardService)
 	eventHandler    := handlers.NewEventHandler(eventService)
 	warrantyHandler  := handlers.NewWarrantyHandler(cfg.ResendAPIKey, cfg.ResendFrom)
-	cartLinkHandler  := handlers.NewCartLinkHandler(cartLinkService, cfg.FrontendURL)
+	cartLinkHandler      := handlers.NewCartLinkHandler(cartLinkService, cfg.FrontendURL)
+	cartStorageHandler   := handlers.NewCartStorageHandler(cartStorageService, couponService, emailService, userService, settingService)
 
 	log.Println("[BOOT] server.go v2 — cart-links registrado")
 
@@ -147,6 +150,9 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		protected.GET("/users/:id", userHandler.GetUser)
 		protected.PUT("/users/:id", userHandler.UpdateUser)
 
+		protected.PUT("/cart", cartStorageHandler.SaveMyCart)
+		protected.DELETE("/cart", cartStorageHandler.ClearMyCart)
+
 		protected.POST("/checkout", orderHandler.Checkout)
 		protected.GET("/orders/me", orderHandler.GetMyOrders)
 		protected.GET("/orders/:id", orderHandler.GetOrder)
@@ -192,6 +198,9 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 
 		admin.GET("/settings/abandoned-cart-email", settingHandler.GetAbandonedCartEmail)
 		admin.PUT("/settings/abandoned-cart-email", settingHandler.SetAbandonedCartEmail)
+
+		admin.GET("/carts", cartStorageHandler.ListCarts)
+		admin.POST("/carts/:userID/send-coupon", cartStorageHandler.SendCoupon)
 	}
 
 	return router
