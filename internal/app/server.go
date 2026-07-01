@@ -34,6 +34,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	eventRepo      := repositories.NewEventRepositoryMongo(db.Collection("events"))
 	cartLinkRepo   := repositories.NewCartLinkRepositoryMongo(db.Collection("cart_links"))
 	couponRepo     := repositories.NewCouponRepositoryMongo(db.Collection("coupons"))
+	settingRepo    := repositories.NewSettingRepositoryMongo(db.Collection("settings"))
 
 	// ── Services ─────────────────────────────────────────────────────────────
 	emailService := services.NewEmailService(cfg.ResendAPIKey, cfg.ResendFrom, cfg.OwnerEmails)
@@ -50,6 +51,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	eventService     := services.NewEventService(eventRepo, orderRepo)
 	cartLinkService  := services.NewCartLinkService(cartLinkRepo)
 	couponService    := services.NewCouponService(couponRepo, orderRepo)
+	settingService := services.NewSettingService(settingRepo)
 	imageStorage := services.NewLocalImageStorage("./uploads", cfg.AppURL+"/uploads")
 
 	paymentService, err := services.NewPaymentService(
@@ -71,6 +73,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	productHandler := handlers.NewProductHandler(productService, imageStorage)
 	kitHandler             := handlers.NewKitHandler(kitService, imageStorage)
 	couponHandler          := handlers.NewCouponHandler(couponService)
+	settingHandler := handlers.NewSettingHandler(settingService)
 	orderHandler           := handlers.NewOrderHandler(orderService, cartService, paymentService, emailService, couponService)
 	webhookHandler         := handlers.NewWebhookHandler(paymentService, orderService, emailService, cfg.MPWebhookSecret)
 	distributorLeadHandler := handlers.NewDistributorLeadHandler(distributorLeadService)
@@ -186,6 +189,9 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		admin.GET("/orders", orderHandler.ListAllOrders)
 		admin.PATCH("/orders/:id/status", orderHandler.UpdateAdminOrderStatus)
 		admin.DELETE("/orders/:id", orderHandler.DeleteOrder)
+
+		admin.GET("/settings/abandoned-cart-email", settingHandler.GetAbandonedCartEmail)
+		admin.PUT("/settings/abandoned-cart-email", settingHandler.SetAbandonedCartEmail)
 	}
 
 	return router
