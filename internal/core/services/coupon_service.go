@@ -118,3 +118,7 @@ func (s *CouponService) Update(ctx context.Context, c *domain.Coupon) error {
 func (s *CouponService) Delete(ctx context.Context, id primitive.ObjectID) error {
 	return s.repo.Delete(ctx, id)
 }
+
+func (s *CouponService) GetByID(ctx context.Context, id primitive.ObjectID) (*domain.Coupon, error) {
+	return s.repo.GetByID(ctx, id)
+}

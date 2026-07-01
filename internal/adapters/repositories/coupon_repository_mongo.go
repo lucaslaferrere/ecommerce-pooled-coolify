@@ -64,3 +64,12 @@ func (r *CouponRepositoryMongo) Delete(ctx context.Context, id primitive.ObjectI
 	_, err := r.collection.DeleteOne(ctx, bson.M{"_id": id})
 	return err
 }
+
+func (r *CouponRepositoryMongo) GetByID(ctx context.Context, id primitive.ObjectID) (*domain.Coupon, error) {
+	var c domain.Coupon
+	err := r.collection.FindOne(ctx, bson.M{"_id": id}).Decode(&c)
+	if err == mongo.ErrNoDocuments {
+		return nil, nil
+	}
+	return &c, err
+}

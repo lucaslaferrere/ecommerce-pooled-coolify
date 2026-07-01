@@ -67,6 +67,63 @@ func (s *EmailService) Send(to, subject, html string) error {
 	return nil
 }
 
+// SendAbandonedCartEmail envía el email de recuperación de carrito con el cupón.
+// bodyText es el template editable; se interpolan las variables y se envuelve en HTML.
+func (s *EmailService) SendAbandonedCartEmail(toEmail, bodyText string, coupon *domain.Coupon, items []domain.CartItem, total float64) error {
+	if !s.Enabled() {
+		return nil
+	}
+
+	// Construir el listado de productos en texto.
+	var productsText strings.Builder
+	for _, it := range items {
+		name := it.Name
+		if name == "" {
+			name = it.VariantSKU
+		}
+		fmt.Fprintf(&productsText, "- %s x%d\n", name, it.Quantity)
+	}
+
+	vencimiento := "sin vencimiento"
+	if coupon.ExpiresAt != nil {
+		vencimiento = coupon.ExpiresAt.Format("02/01/2006")
+	}
+	descuento := fmt.Sprintf("%g%%", coupon.DiscountPercent)
+	totalStr := fmt.Sprintf("$%.0f", total)
+
+	replacer := strings.NewReplacer(
+		"{{codigo}}", coupon.Code,
+		"{{descuento}}", descuento,
+		"{{vencimiento}}", vencimiento,
+		"{{productos}}", productsText.String(),
+		"{{total}}", totalStr,
+	)
+	filled := replacer.Replace(bodyText)
+
+	// Convertir saltos de línea a <br> y envolver en HTML simple.
+	htmlBody := strings.ReplaceAll(filled, "\n", "<br>")
+	html := fmt.Sprintf(`
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,Segoe UI,Roboto,sans-serif;">
+  <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
+        <tr><td style="background:#0ea5e9;padding:24px 32px;">
+          <h1 style="margin:0;color:#fff;font-size:18px;">🛒 Tu carrito te espera</h1>
+        </td></tr>
+        <tr><td style="padding:28px 32px;color:#374151;font-size:14px;line-height:1.6;">
+          %s
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`, htmlBody)
+
+	subject := fmt.Sprintf("Te dejamos un %s de descuento 🎁", descuento)
+	return s.Send(toEmail, subject, html)
+}
+
 // SendPasswordResetCode envía el código de recuperación de contraseña.
 func (s *EmailService) SendPasswordResetCode(to, code string) error {
 	return s.Send(to, "Recuperación de contraseña", buildPasswordResetHTML(to, code))
