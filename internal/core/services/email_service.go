@@ -73,6 +73,9 @@ func (s *EmailService) SendAbandonedCartEmail(toEmail, bodyText string, coupon *
 	if !s.Enabled() {
 		return nil
 	}
+	if coupon == nil {
+		return fmt.Errorf("SendAbandonedCartEmail: coupon requerido")
+	}
 
 	// Construir el listado de productos en texto.
 	var productsText strings.Builder
