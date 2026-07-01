@@ -61,11 +61,12 @@ func serverCalcDiscount(subtotal float64, paymentMethod string) float64 {
 
 // OrderHandler maneja las peticiones HTTP relacionadas con órdenes
 type OrderHandler struct {
-	orderService   *services.OrderService
-	cartService    *services.CartService
-	paymentService *services.PaymentService
-	emailService   *services.EmailService
-	couponService  *services.CouponService
+	orderService       *services.OrderService
+	cartService        *services.CartService
+	paymentService     *services.PaymentService
+	emailService       *services.EmailService
+	couponService      *services.CouponService
+	cartStorageService *services.CartStorageService
 }
 
 // NewOrderHandler crea una nueva instancia de OrderHandler
@@ -75,13 +76,15 @@ func NewOrderHandler(
 	paymentService *services.PaymentService,
 	emailService *services.EmailService,
 	couponService *services.CouponService,
+	cartStorageService *services.CartStorageService,
 ) *OrderHandler {
 	return &OrderHandler{
-		orderService:   orderService,
-		cartService:    cartService,
-		paymentService: paymentService,
-		emailService:   emailService,
-		couponService:  couponService,
+		orderService:       orderService,
+		cartService:        cartService,
+		paymentService:     paymentService,
+		emailService:       emailService,
+		couponService:      couponService,
+		cartStorageService: cartStorageService,
 	}
 }
 
@@ -196,6 +199,11 @@ func (h *OrderHandler) Checkout(c *gin.Context) {
 
 	// Notificar a los dueños del nuevo pedido (fire-and-forget)
 	go h.emailService.SendOwnerNewOrder(order)
+
+	// Vaciar el carrito persistido del usuario: ya concretó la compra.
+	if err := h.cartStorageService.Clear(c.Request.Context(), userID); err != nil {
+		log.Printf("checkout: no se pudo vaciar el carrito de %s: %v", userID.Hex(), err)
+	}
 
 	c.JSON(http.StatusCreated, gin.H{
 		"order":              order,

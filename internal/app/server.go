@@ -76,7 +76,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	kitHandler             := handlers.NewKitHandler(kitService, imageStorage)
 	couponHandler          := handlers.NewCouponHandler(couponService)
 	settingHandler := handlers.NewSettingHandler(settingService)
-	orderHandler           := handlers.NewOrderHandler(orderService, cartService, paymentService, emailService, couponService)
+	orderHandler           := handlers.NewOrderHandler(orderService, cartService, paymentService, emailService, couponService, cartStorageService)
 	webhookHandler         := handlers.NewWebhookHandler(paymentService, orderService, emailService, cfg.MPWebhookSecret)
 	distributorLeadHandler := handlers.NewDistributorLeadHandler(distributorLeadService)
 	wizardHandler   := handlers.NewWizardRecommendationHandler(wizardService)
