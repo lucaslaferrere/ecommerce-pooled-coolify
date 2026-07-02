@@ -170,6 +170,8 @@ func (h *OrderHandler) Checkout(c *gin.Context) {
 		}
 		couponCode = coupon.Code
 		couponDiscount = services.ApplyCouponDiscount(cart.Total, coupon.DiscountPercent)
+		// El descuento por transferencia (3.5%) no se acumula con un cupón: el cupón gana.
+		discount = 0
 	}
 
 	// Paso 2: descontar stock y persistir la orden (estado: "pending")
