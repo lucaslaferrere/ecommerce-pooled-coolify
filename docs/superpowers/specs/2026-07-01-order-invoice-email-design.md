@@ -55,6 +55,9 @@ donde `content` es el archivo en base64. Se agrega soporte de adjuntos:
   que arma el payload Resend con `attachments: [{ filename, content: pdfBase64 }]`.
   El `Send` existente no se toca (se puede factorizar un helper interno que acepte
   adjuntos opcionales, sin cambiar la firma pública de `Send`).
+- **Destinatario: SOLO el cliente** (`order.CustomerEmail`). El mail de factura NO
+  se envía a `OwnerEmails` — a diferencia de los avisos de nuevo pedido / cambio de
+  estado / registro, este flujo no notifica a los dueños.
 - Asunto: `Factura de tu pedido #XXXX — Pooled`.
 - Cuerpo HTML fijo y simple, con el número de pedido; el PDF va adjunto.
 
