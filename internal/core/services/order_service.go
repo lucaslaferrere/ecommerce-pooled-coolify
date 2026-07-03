@@ -195,6 +195,20 @@ func (s *OrderService) SetTracking(ctx context.Context, id primitive.ObjectID, t
 	return s.orderRepository.Update(ctx, order)
 }
 
+// SetInvoiceSentAt marca en el pedido la fecha de envío de la factura.
+func (s *OrderService) SetInvoiceSentAt(ctx context.Context, id primitive.ObjectID, t time.Time) error {
+	order, err := s.orderRepository.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if order == nil {
+		return ErrOrderNotFound
+	}
+	order.InvoiceSentAt = &t
+	order.UpdatedAt = time.Now()
+	return s.orderRepository.Update(ctx, order)
+}
+
 // ConfirmPayment marca la orden como pagada y registra el ID de pago de MP.
 // Idempotente: si la orden ya está en estado "paid", retorna nil.
 func (s *OrderService) ConfirmPayment(ctx context.Context, orderID primitive.ObjectID, paymentID string) error {

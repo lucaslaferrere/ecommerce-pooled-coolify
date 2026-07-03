@@ -41,6 +41,7 @@ type Order struct {
 	CouponCode      string             `bson:"coupon_code,omitempty"     json:"coupon_code,omitempty"`
 	CouponDiscount  float64            `bson:"coupon_discount,omitempty" json:"coupon_discount,omitempty"`
 	TrackingNumber  string             `bson:"tracking_number,omitempty" json:"tracking_number,omitempty"`
+	InvoiceSentAt   *time.Time         `bson:"invoice_sent_at,omitempty" json:"invoice_sent_at,omitempty"`
 	PreferenceID    string             `bson:"preference_id,omitempty" json:"preference_id,omitempty"`
 	PaymentID       string             `bson:"payment_id,omitempty" json:"payment_id,omitempty"`
 	CreatedAt       time.Time          `bson:"created_at" json:"created_at,omitempty"`
