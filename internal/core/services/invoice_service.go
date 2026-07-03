@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"ecommerce-pooled/internal/adapters/repositories"
@@ -47,8 +48,12 @@ func (s *InvoiceService) SaveAndSend(ctx context.Context, orderID primitive.Obje
 	}
 
 	now := time.Now()
-	_ = s.repo.SetSentAt(ctx, orderID, now)
-	_ = s.orderService.SetInvoiceSentAt(ctx, orderID, now)
+	if err := s.repo.SetSentAt(ctx, orderID, now); err != nil {
+		log.Printf("invoice: no se pudo marcar sent_at en la factura del pedido %s: %v", orderID.Hex(), err)
+	}
+	if err := s.orderService.SetInvoiceSentAt(ctx, orderID, now); err != nil {
+		log.Printf("invoice: no se pudo marcar invoice_sent_at en el pedido %s: %v", orderID.Hex(), err)
+	}
 	return now, nil
 }
 
@@ -72,7 +77,11 @@ func (s *InvoiceService) Resend(ctx context.Context, orderID primitive.ObjectID)
 		return time.Time{}, err
 	}
 	now := time.Now()
-	_ = s.repo.SetSentAt(ctx, orderID, now)
-	_ = s.orderService.SetInvoiceSentAt(ctx, orderID, now)
+	if err := s.repo.SetSentAt(ctx, orderID, now); err != nil {
+		log.Printf("invoice: no se pudo marcar sent_at en la factura del pedido %s: %v", orderID.Hex(), err)
+	}
+	if err := s.orderService.SetInvoiceSentAt(ctx, orderID, now); err != nil {
+		log.Printf("invoice: no se pudo marcar invoice_sent_at en el pedido %s: %v", orderID.Hex(), err)
+	}
 	return now, nil
 }
