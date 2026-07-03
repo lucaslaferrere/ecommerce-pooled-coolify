@@ -36,6 +36,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	couponRepo     := repositories.NewCouponRepositoryMongo(db.Collection("coupons"))
 	settingRepo    := repositories.NewSettingRepositoryMongo(db.Collection("settings"))
 	cartRepo       := repositories.NewCartRepositoryMongo(db.Collection("carts"))
+	invoiceRepo    := repositories.NewInvoiceRepositoryMongo(db.Collection("invoices"))
 
 	// ── Services ─────────────────────────────────────────────────────────────
 	emailService := services.NewEmailService(cfg.ResendAPIKey, cfg.ResendFrom, cfg.OwnerEmails)
@@ -54,6 +55,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	couponService    := services.NewCouponService(couponRepo, orderRepo)
 	settingService := services.NewSettingService(settingRepo)
 	cartStorageService := services.NewCartStorageService(cartRepo)
+	invoiceService := services.NewInvoiceService(invoiceRepo, orderService, emailService)
 	imageStorage := services.NewLocalImageStorage("./uploads", cfg.AppURL+"/uploads")
 
 	paymentService, err := services.NewPaymentService(
@@ -84,6 +86,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	warrantyHandler  := handlers.NewWarrantyHandler(cfg.ResendAPIKey, cfg.ResendFrom)
 	cartLinkHandler      := handlers.NewCartLinkHandler(cartLinkService, cfg.FrontendURL)
 	cartStorageHandler   := handlers.NewCartStorageHandler(cartStorageService, couponService, emailService, userService, settingService)
+	invoiceHandler := handlers.NewInvoiceHandler(invoiceService)
 
 	log.Println("[BOOT] server.go v2 — cart-links registrado")
 
@@ -195,6 +198,8 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		admin.GET("/orders", orderHandler.ListAllOrders)
 		admin.PATCH("/orders/:id/status", orderHandler.UpdateAdminOrderStatus)
 		admin.DELETE("/orders/:id", orderHandler.DeleteOrder)
+		admin.POST("/orders/:id/invoice", invoiceHandler.Upload)
+		admin.POST("/orders/:id/invoice/resend", invoiceHandler.Resend)
 
 		admin.GET("/settings/abandoned-cart-email", settingHandler.GetAbandonedCartEmail)
 		admin.PUT("/settings/abandoned-cart-email", settingHandler.SetAbandonedCartEmail)
