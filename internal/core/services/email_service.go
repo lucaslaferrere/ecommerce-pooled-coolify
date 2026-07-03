@@ -26,24 +26,11 @@ func (s *EmailService) Enabled() bool {
 	return s.apiKey != ""
 }
 
-// Send envía un email HTML al destinatario indicado.
-func (s *EmailService) Send(to, subject, html string) error {
+// postResend serializa el payload y lo envía a la API de Resend.
+func (s *EmailService) postResend(payload interface{}) error {
 	if s.apiKey == "" {
 		return fmt.Errorf("servicio de email no configurado")
 	}
-
-	payload := struct {
-		From    string   `json:"from"`
-		To      []string `json:"to"`
-		Subject string   `json:"subject"`
-		HTML    string   `json:"html"`
-	}{
-		From:    s.from,
-		To:      []string{to},
-		Subject: subject,
-		HTML:    html,
-	}
-
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -60,11 +47,71 @@ func (s *EmailService) Send(to, subject, html string) error {
 		return err
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("resend error: status %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// Send envía un email HTML al destinatario indicado.
+func (s *EmailService) Send(to, subject, html string) error {
+	payload := struct {
+		From    string   `json:"from"`
+		To      []string `json:"to"`
+		Subject string   `json:"subject"`
+		HTML    string   `json:"html"`
+	}{
+		From:    s.from,
+		To:      []string{to},
+		Subject: subject,
+		HTML:    html,
+	}
+	return s.postResend(payload)
+}
+
+// SendInvoice envía la factura (PDF adjunto) SOLO al cliente del pedido.
+// pdfBase64 es el contenido del PDF en base64; filename el nombre del adjunto.
+func (s *EmailService) SendInvoice(order *domain.Order, pdfBase64, filename string) error {
+	if !s.Enabled() {
+		return nil
+	}
+	ref := strings.ToUpper(order.ID.Hex()[len(order.ID.Hex())-8:])
+	subject := fmt.Sprintf("Factura de tu pedido #%s — Pooled", ref)
+	html := fmt.Sprintf(`
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,Segoe UI,Roboto,sans-serif;">
+  <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
+        <tr><td style="background:#0B1F3A;padding:24px 32px;">
+          <h1 style="margin:0;color:#fff;font-size:18px;">Tu factura</h1>
+        </td></tr>
+        <tr><td style="padding:28px 32px;color:#374151;font-size:14px;line-height:1.6;">
+          Adjuntamos la factura de tu pedido <strong>#%s</strong>.<br><br>
+          ¡Gracias por tu compra!
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`, ref)
+
+	payload := struct {
+		From        string              `json:"from"`
+		To          []string            `json:"to"`
+		Subject     string              `json:"subject"`
+		HTML        string              `json:"html"`
+		Attachments []map[string]string `json:"attachments"`
+	}{
+		From:    s.from,
+		To:      []string{order.CustomerEmail},
+		Subject: subject,
+		HTML:    html,
+		Attachments: []map[string]string{
+			{"filename": filename, "content": pdfBase64},
+		},
+	}
+	return s.postResend(payload)
 }
 
 // SendAbandonedCartEmail envía el email de recuperación de carrito con el cupón.
