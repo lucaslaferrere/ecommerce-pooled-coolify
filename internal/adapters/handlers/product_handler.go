@@ -574,6 +574,34 @@ func (h *ProductHandler) SetSortOrder(c *gin.Context) {
 	c.JSON(http.StatusOK, product)
 }
 
+// BulkUpdatePrice maneja PATCH /admin/products/bulk-price
+// Body: { percent, product_ids?, category? }. Resuelve el conjunto server-side.
+func (h *ProductHandler) BulkUpdatePrice(c *gin.Context) {
+	var req struct {
+		Percent    float64  `json:"percent"`
+		ProductIDs []string `json:"product_ids"`
+		Category   string   `json:"category"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ids := make([]primitive.ObjectID, 0, len(req.ProductIDs))
+	for _, s := range req.ProductIDs {
+		if oid, err := primitive.ObjectIDFromHex(s); err == nil {
+			ids = append(ids, oid)
+		}
+	}
+
+	updated, err := h.productService.BulkUpdatePrice(c.Request.Context(), req.Percent, ids, req.Category)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"updated": updated})
+}
+
 // RegisterRoutes registra las rutas de producto
 // Nota: Las rutas de mutación (POST, PUT, DELETE) deben incluir AdminMiddleware en main.go
 func (h *ProductHandler) RegisterRoutes(router *gin.Engine) {

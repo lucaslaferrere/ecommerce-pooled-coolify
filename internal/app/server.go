@@ -175,6 +175,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		admin.GET("/products", productHandler.ListAdminProducts)
 		admin.POST("/products", productHandler.CreateProduct)
 		admin.PUT("/products/:id", productHandler.UpdateProduct)
+		admin.PATCH("/products/bulk-price", productHandler.BulkUpdatePrice)
 		admin.PATCH("/products/:id/visibility", productHandler.SetVisibility)
 		admin.PATCH("/products/:id/sort-order", productHandler.SetSortOrder)
 		admin.PATCH("/products/:id/variants/:sku/stock", productHandler.UpdateVariantStock)
