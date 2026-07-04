@@ -337,6 +337,33 @@ func (h *KitHandler) DeleteKit(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "kit eliminado"})
 }
 
+// BulkUpdatePrice maneja PATCH /api/v1/admin/kits/bulk-price
+// Body: { percent, kit_ids? }. Resuelve el conjunto server-side.
+func (h *KitHandler) BulkUpdatePrice(c *gin.Context) {
+	var req struct {
+		Percent float64  `json:"percent"`
+		KitIDs  []string `json:"kit_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ids := make([]primitive.ObjectID, 0, len(req.KitIDs))
+	for _, s := range req.KitIDs {
+		if oid, err := primitive.ObjectIDFromHex(s); err == nil {
+			ids = append(ids, oid)
+		}
+	}
+
+	updated, err := h.kitService.BulkUpdatePrice(c.Request.Context(), req.Percent, ids)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"updated": updated})
+}
+
 func (h *KitHandler) uploadKitImageIfPresent(c *gin.Context) (string, error) {
 	fh, err := c.FormFile("image")
 	if err != nil {
