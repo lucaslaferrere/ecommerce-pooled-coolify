@@ -79,6 +79,7 @@ func (r *ProductRepositoryMongo) Update(ctx context.Context, product *domain.Pro
 			"brand":            product.Brand,
 			"images":           product.Images,
 			"variants":         product.Variants,
+			"variant_labels":   product.VariantLabels,
 			"specs":            product.Specs,
 			"main_specs":       product.MainSpecs,
 			"sort_order":       product.SortOrder,
