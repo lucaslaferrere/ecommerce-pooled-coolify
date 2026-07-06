@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"ecommerce-pooled/internal/core/domain"
@@ -89,6 +90,12 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		return
 	}
 
+	variantLabels, err := parseVariantLabelsForm(c.PostForm("variant_labels"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("variant_labels inválido: %v", err)})
+		return
+	}
+
 	images, err := h.uploadImagesIfPresent(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("image inválido: %v", err)})
@@ -118,6 +125,7 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		Brand:           brand,
 		Images:          images,
 		Variants:        normalizeVariants(variants, stock),
+		VariantLabels:   variantLabels,
 		Specs:           specs,
 		MainSpecs:       mainSpecs,
 		Visible:         &visibleTrue,
@@ -150,13 +158,30 @@ func parseVariantsForm(raw string) ([]domain.Variant, error) {
 func normalizeVariants(variants []domain.Variant, productStock int) []domain.Variant {
 	for i := range variants {
 		if variants[i].SKU == "" {
-			variants[i].SKU = fmt.Sprintf("%s-%s", variants[i].Color, variants[i].Size)
+			sku := fmt.Sprintf("%s-%s", variants[i].Color, variants[i].Size)
+			if variants[i].Attr3 != "" {
+				sku = fmt.Sprintf("%s-%s", sku, variants[i].Attr3)
+			}
+			variants[i].SKU = sku
 		}
 		if variants[i].Stock == 0 && productStock > 0 {
 			variants[i].Stock = productStock
 		}
 	}
 	return variants
+}
+
+// parseVariantLabelsForm decodifica el JSON stringificado del campo 'variant_labels'
+// (un arreglo de hasta 3 etiquetas). Devuelve nil si viene vacío.
+func parseVariantLabelsForm(raw string) ([]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	var labels []string
+	if err := json.Unmarshal([]byte(raw), &labels); err != nil {
+		return nil, err
+	}
+	return labels, nil
 }
 
 // parseSpecsForm decodifica el JSON stringificado del campo 'specs'.
@@ -429,6 +454,14 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 			return
 		}
 		product.MainSpecs = ms
+	}
+	if form.Has("variant_labels") {
+		variantLabels, err := parseVariantLabelsForm(form.Get("variant_labels"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("variant_labels inválido: %v", err)})
+			return
+		}
+		product.VariantLabels = variantLabels
 	}
 	if form.Has("images") {
 		var imgs []string

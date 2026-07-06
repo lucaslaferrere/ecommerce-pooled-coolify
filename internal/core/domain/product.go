@@ -11,6 +11,7 @@ type Variant struct {
 	SKU             string  `bson:"sku" json:"sku"`
 	Color           string  `bson:"color" json:"color"`
 	Size            string  `bson:"size" json:"size"`
+	Attr3           string  `bson:"attr3,omitempty" json:"attr3,omitempty"`
 	Stock           int     `bson:"stock" json:"stock"`
 	PriceAdjustment float64 `bson:"price_adjustment" json:"price_adjustment"` // Ajuste al precio base
 }
@@ -47,6 +48,7 @@ type Product struct {
 	Brand           string             `bson:"brand" json:"brand"`
 	Images          []string           `bson:"images" json:"images"`
 	Variants        []Variant          `bson:"variants" json:"variants"`
+	VariantLabels   []string           `bson:"variant_labels,omitempty" json:"variant_labels,omitempty"`
 	Specs           []Spec             `bson:"specs" json:"specs"`
 	MainSpecs       []MainSpec         `bson:"main_specs,omitempty" json:"main_specs,omitempty"`
 	Benefits        []Benefit          `bson:"benefits,omitempty" json:"benefits,omitempty"`
