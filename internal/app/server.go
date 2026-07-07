@@ -37,6 +37,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	settingRepo    := repositories.NewSettingRepositoryMongo(db.Collection("settings"))
 	cartRepo       := repositories.NewCartRepositoryMongo(db.Collection("carts"))
 	invoiceRepo    := repositories.NewInvoiceRepositoryMongo(db.Collection("invoices"))
+	emailTemplateRepo := repositories.NewEmailTemplateRepositoryMongo(db.Collection("email_templates"))
 
 	// ── Services ─────────────────────────────────────────────────────────────
 	emailService := services.NewEmailService(cfg.ResendAPIKey, cfg.ResendFrom, cfg.OwnerEmails)
@@ -54,6 +55,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	cartLinkService  := services.NewCartLinkService(cartLinkRepo)
 	couponService    := services.NewCouponService(couponRepo, orderRepo)
 	settingService := services.NewSettingService(settingRepo)
+	emailTemplateService := services.NewEmailTemplateService(emailTemplateRepo, settingService)
 	cartStorageService := services.NewCartStorageService(cartRepo)
 	invoiceService := services.NewInvoiceService(invoiceRepo, orderService, emailService)
 	imageStorage := services.NewLocalImageStorage("./uploads", cfg.AppURL+"/uploads")
@@ -87,6 +89,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	cartLinkHandler      := handlers.NewCartLinkHandler(cartLinkService, cfg.FrontendURL)
 	cartStorageHandler   := handlers.NewCartStorageHandler(cartStorageService, couponService, emailService, userService, settingService)
 	invoiceHandler := handlers.NewInvoiceHandler(invoiceService)
+	emailTemplateHandler := handlers.NewEmailTemplateHandler(emailTemplateService)
 
 	log.Println("[BOOT] server.go v2 — cart-links registrado")
 
@@ -208,6 +211,10 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 
 		admin.GET("/carts", cartStorageHandler.ListCarts)
 		admin.POST("/carts/:userID/send-coupon", cartStorageHandler.SendCoupon)
+
+		admin.GET("/email-templates", emailTemplateHandler.List)
+		admin.POST("/email-templates", emailTemplateHandler.Create)
+		admin.DELETE("/email-templates/:id", emailTemplateHandler.Delete)
 	}
 
 	return router
