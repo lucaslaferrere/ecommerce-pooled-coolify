@@ -87,7 +87,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	eventHandler    := handlers.NewEventHandler(eventService)
 	warrantyHandler  := handlers.NewWarrantyHandler(cfg.ResendAPIKey, cfg.ResendFrom)
 	cartLinkHandler      := handlers.NewCartLinkHandler(cartLinkService, cfg.FrontendURL)
-	cartStorageHandler   := handlers.NewCartStorageHandler(cartStorageService, couponService, emailService, userService, settingService)
+	cartStorageHandler   := handlers.NewCartStorageHandler(cartStorageService, couponService, emailService, userService, emailTemplateService)
 	invoiceHandler := handlers.NewInvoiceHandler(invoiceService)
 	emailTemplateHandler := handlers.NewEmailTemplateHandler(emailTemplateService)
 

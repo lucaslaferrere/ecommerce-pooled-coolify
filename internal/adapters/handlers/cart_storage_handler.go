@@ -15,7 +15,7 @@ type CartStorageHandler struct {
 	couponSvc    *services.CouponService
 	emailService *services.EmailService
 	userService  *services.UserService
-	settingSvc   *services.SettingService
+	templateSvc  *services.EmailTemplateService
 }
 
 func NewCartStorageHandler(
@@ -23,14 +23,14 @@ func NewCartStorageHandler(
 	couponSvc *services.CouponService,
 	emailService *services.EmailService,
 	userService *services.UserService,
-	settingSvc *services.SettingService,
+	templateSvc *services.EmailTemplateService,
 ) *CartStorageHandler {
 	return &CartStorageHandler{
 		svc:          svc,
 		couponSvc:    couponSvc,
 		emailService: emailService,
 		userService:  userService,
-		settingSvc:   settingSvc,
+		templateSvc:  templateSvc,
 	}
 }
 
@@ -136,7 +136,8 @@ func (h *CartStorageHandler) SendCoupon(c *gin.Context) {
 		return
 	}
 	var req struct {
-		CouponID string `json:"coupon_id" binding:"required"`
+		TemplateID string `json:"template_id" binding:"required"`
+		CouponID   string `json:"coupon_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -153,21 +154,31 @@ func (h *CartStorageHandler) SendCoupon(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "usuario no encontrado"})
 		return
 	}
-	couponID, err := primitive.ObjectIDFromHex(req.CouponID)
+
+	templateID, err := primitive.ObjectIDFromHex(req.TemplateID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "cupón inválido"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "plantilla inválida"})
 		return
 	}
-	coupon, err := h.couponSvc.GetByID(c.Request.Context(), couponID)
-	if err != nil || coupon == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "cupón no encontrado"})
+	template, err := h.templateSvc.GetByID(c.Request.Context(), templateID)
+	if err != nil || template == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "plantilla no encontrada"})
 		return
 	}
 
-	body, err := h.settingSvc.GetAbandonedCartBody(c.Request.Context())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+	// El cupón es opcional.
+	var coupon *domain.Coupon
+	if req.CouponID != "" {
+		couponID, err := primitive.ObjectIDFromHex(req.CouponID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "cupón inválido"})
+			return
+		}
+		coupon, err = h.couponSvc.GetByID(c.Request.Context(), couponID)
+		if err != nil || coupon == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "cupón no encontrado"})
+			return
+		}
 	}
 
 	var total float64
@@ -175,7 +186,7 @@ func (h *CartStorageHandler) SendCoupon(c *gin.Context) {
 		total += it.UnitPrice * float64(it.Quantity)
 	}
 
-	if err := h.emailService.SendAbandonedCartEmail(user.Email, body, coupon, cart.Items, total); err != nil {
+	if err := h.emailService.SendAbandonedCartEmail(user.Email, template.Body, coupon, cart.Items, total); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "no se pudo enviar el email: " + err.Error()})
 		return
 	}
