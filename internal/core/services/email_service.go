@@ -120,9 +120,6 @@ func (s *EmailService) SendAbandonedCartEmail(toEmail, bodyText string, coupon *
 	if !s.Enabled() {
 		return nil
 	}
-	if coupon == nil {
-		return fmt.Errorf("SendAbandonedCartEmail: coupon requerido")
-	}
 
 	// Construir el listado de productos en texto.
 	var productsText strings.Builder
@@ -133,25 +130,42 @@ func (s *EmailService) SendAbandonedCartEmail(toEmail, bodyText string, coupon *
 		}
 		fmt.Fprintf(&productsText, "- %s x%d\n", name, it.Quantity)
 	}
-
-	vencimiento := "sin vencimiento"
-	if coupon.ExpiresAt != nil {
-		vencimiento = coupon.ExpiresAt.Format("02/01/2006")
-	}
-	descuento := fmt.Sprintf("%g%%", coupon.DiscountPercent)
 	totalStr := fmt.Sprintf("$%.0f", total)
 
+	// Coupon values are filled when present, blanked when absent (legacy
+	// bodies may still contain the placeholders). The canonical rendering
+	// is the separate block below.
+	codigo, descuento, vencimiento := "", "", ""
+	if coupon != nil {
+		codigo = coupon.Code
+		descuento = fmt.Sprintf("%g%%", coupon.DiscountPercent)
+		vencimiento = "sin vencimiento"
+		if coupon.ExpiresAt != nil {
+			vencimiento = coupon.ExpiresAt.Format("02/01/2006")
+		}
+	}
+
 	replacer := strings.NewReplacer(
-		"{{codigo}}", coupon.Code,
+		"{{codigo}}", codigo,
 		"{{descuento}}", descuento,
 		"{{vencimiento}}", vencimiento,
 		"{{productos}}", productsText.String(),
 		"{{total}}", totalStr,
 	)
 	filled := replacer.Replace(bodyText)
-
-	// Convertir saltos de línea a <br> y envolver en HTML simple.
 	htmlBody := strings.ReplaceAll(filled, "\n", "<br>")
+
+	// Bloque de cupón: solo cuando hay cupón seleccionado.
+	couponBlock := ""
+	if coupon != nil {
+		couponBlock = fmt.Sprintf(`
+          <div style="margin-top:20px;padding:16px;border:1px dashed #0ea5e9;border-radius:8px;background:#f0f9ff;text-align:center;">
+            <div style="font-size:12px;color:#0369a1;text-transform:uppercase;letter-spacing:1px;">Tu cupón</div>
+            <div style="font-size:24px;font-weight:bold;color:#0c4a6e;margin:6px 0;">%s</div>
+            <div style="font-size:14px;color:#0369a1;">%s de descuento · vence %s</div>
+          </div>`, codigo, descuento, vencimiento)
+	}
+
 	html := fmt.Sprintf(`
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8"></head>
@@ -163,14 +177,17 @@ func (s *EmailService) SendAbandonedCartEmail(toEmail, bodyText string, coupon *
           <h1 style="margin:0;color:#fff;font-size:18px;">🛒 Tu carrito te espera</h1>
         </td></tr>
         <tr><td style="padding:28px 32px;color:#374151;font-size:14px;line-height:1.6;">
-          %s
+          %s%s
         </td></tr>
       </table>
     </td></tr>
   </table>
-</body></html>`, htmlBody)
+</body></html>`, htmlBody, couponBlock)
 
-	subject := fmt.Sprintf("Te dejamos un %s de descuento 🎁", descuento)
+	subject := "🛒 Tu carrito te espera"
+	if coupon != nil {
+		subject = fmt.Sprintf("Te dejamos un %s de descuento 🎁", descuento)
+	}
 	return s.Send(toEmail, subject, html)
 }
 
