@@ -257,7 +257,14 @@ func (h *OrderHandler) UpdateAdminOrderStatus(c *gin.Context) {
 		return
 	}
 
-	if err := h.orderService.UpdateOrderStatus(c.Request.Context(), id, req.Status); err != nil {
+	// Cancelar/rechazar repone stock (idempotente); el resto de las transiciones
+	// solo actualizan el estado.
+	if req.Status == "cancelled" || req.Status == "rejected" {
+		if err := h.orderService.CancelOrReject(c.Request.Context(), id, req.Status); err != nil {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+			return
+		}
+	} else if err := h.orderService.UpdateOrderStatus(c.Request.Context(), id, req.Status); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}

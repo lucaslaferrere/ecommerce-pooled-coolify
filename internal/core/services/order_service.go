@@ -145,6 +145,42 @@ func (s *OrderService) CancelOrder(ctx context.Context, id primitive.ObjectID) e
 	return s.orderRepository.UpdateStatus(ctx, id, "cancelled")
 }
 
+// CancelOrReject marca una orden como "cancelled" o "rejected" y repone el
+// stock de sus items. La reposición es idempotente: solo repone si el stock
+// todavía estaba retenido (la orden no estaba ya cancelada/rechazada), de modo
+// que dos transiciones seguidas hacia estados sin stock no duplican el stock.
+func (s *OrderService) CancelOrReject(ctx context.Context, id primitive.ObjectID, status string) error {
+	if status != "cancelled" && status != "rejected" {
+		return ErrInvalidOrderStatus
+	}
+
+	order, err := s.orderRepository.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if order == nil {
+		return ErrOrderNotFound
+	}
+
+	// El stock se descuenta al hacer checkout y permanece retenido en todos los
+	// estados salvo "cancelled"/"rejected". Solo reponemos si estaba retenido.
+	stockHeld := order.Status != "cancelled" && order.Status != "rejected"
+	if stockHeld {
+		for _, item := range order.Items {
+			if item.ItemType == "kit" {
+				continue
+			}
+			if item.VariantSKU == "" {
+				_ = s.productRepository.IncrementProductStock(ctx, item.ProductID, item.Quantity)
+			} else {
+				_ = s.productRepository.IncrementVariantStock(ctx, item.ProductID, item.VariantSKU, item.Quantity)
+			}
+		}
+	}
+
+	return s.orderRepository.UpdateStatus(ctx, id, status)
+}
+
 // DeleteOrder elimina una orden
 func (s *OrderService) DeleteOrder(ctx context.Context, id primitive.ObjectID) error {
 	return s.orderRepository.Delete(ctx, id)
