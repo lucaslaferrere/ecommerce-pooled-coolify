@@ -137,8 +137,14 @@ func (s *EventService) GetTrafficReport(ctx context.Context) (*domain.TrafficRep
 func periodBounds(period string) (from, to time.Time) {
 	to = time.Now()
 	switch period {
+	case "1d":
+		// Hoy, desde las 00:00 hs.
+		from = time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, to.Location())
 	case "30d":
 		from = to.AddDate(0, 0, -30)
+	case "1y":
+		// Año a la fecha, desde el 1 de enero.
+		from = time.Date(to.Year(), 1, 1, 0, 0, 0, 0, to.Location())
 	default:
 		from = to.AddDate(0, 0, -7)
 	}

@@ -52,7 +52,10 @@ func (h *EventHandler) GetTraffic(c *gin.Context) {
 // GetAnalytics maneja GET /api/v1/admin/analytics?period=7d (solo admin)
 func (h *EventHandler) GetAnalytics(c *gin.Context) {
 	period := c.DefaultQuery("period", "7d")
-	if period != "7d" && period != "30d" {
+	switch period {
+	case "1d", "7d", "30d", "1y":
+		// valid
+	default:
 		period = "7d"
 	}
 
