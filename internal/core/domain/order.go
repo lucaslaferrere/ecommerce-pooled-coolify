@@ -44,6 +44,7 @@ type Order struct {
 	InvoiceSentAt   *time.Time         `bson:"invoice_sent_at,omitempty" json:"invoice_sent_at,omitempty"`
 	PreferenceID    string             `bson:"preference_id,omitempty" json:"preference_id,omitempty"`
 	PaymentID       string             `bson:"payment_id,omitempty" json:"payment_id,omitempty"`
+	SessionID       string             `bson:"session_id,omitempty" json:"session_id,omitempty"`
 	CreatedAt       time.Time          `bson:"created_at" json:"created_at,omitempty"`
 	UpdatedAt       time.Time          `bson:"updated_at" json:"updated_at,omitempty"`
 }

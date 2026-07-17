@@ -17,7 +17,7 @@ import (
 func StartOrderExpirer(ctx context.Context, db *mongo.Database, interval, maxAge time.Duration) {
 	orderRepo   := repositories.NewOrderRepositoryMongo(db.Collection("orders"))
 	productRepo := repositories.NewProductRepositoryMongo(db.Collection("products"))
-	svc         := services.NewOrderService(orderRepo, productRepo)
+	svc         := services.NewOrderService(orderRepo, productRepo, nil) // sin hub: el expirer no publica ventas
 
 	go func() {
 		ticker := time.NewTicker(interval)

@@ -1,20 +1,25 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"ecommerce-pooled/internal/core/domain"
 	"ecommerce-pooled/internal/core/services"
+	"ecommerce-pooled/internal/realtime"
 
 	"github.com/gin-gonic/gin"
 )
 
 type EventHandler struct {
-	service *services.EventService
+	service  *services.EventService
+	geo      *services.GeoService
+	sessions *realtime.ActiveSessions
+	hub      *realtime.Hub
 }
 
-func NewEventHandler(service *services.EventService) *EventHandler {
-	return &EventHandler{service: service}
+func NewEventHandler(service *services.EventService, geo *services.GeoService, sessions *realtime.ActiveSessions, hub *realtime.Hub) *EventHandler {
+	return &EventHandler{service: service, geo: geo, sessions: sessions, hub: hub}
 }
 
 // TrackEvent maneja POST /api/v1/events (público, fire-and-forget)
@@ -34,8 +39,19 @@ func (h *EventHandler) TrackEvent(c *gin.Context) {
 		SessionID: req.SessionID,
 		Payload:   req.Payload,
 	}
+	// IP y geo se completan server-side, nunca desde el frontend.
+	event.IP = c.ClientIP()
+	event.Country, event.City, event.Province, event.Lat, event.Lng = h.geo.Lookup(event.IP)
+	h.sessions.Touch(req.SessionID)
 
 	_ = h.service.Track(c.Request.Context(), event)
+
+	msg, _ := json.Marshal(map[string]any{
+		"type":       "event",
+		"event_type": event.Type,
+		"session_id": event.SessionID,
+	})
+	h.hub.Broadcast(string(msg))
 	c.JSON(http.StatusCreated, gin.H{"ok": true})
 }
 

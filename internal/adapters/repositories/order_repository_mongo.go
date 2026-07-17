@@ -242,6 +242,31 @@ func (r *OrderRepositoryMongo) Count(ctx context.Context, status string) (int64,
 	return r.collection.CountDocuments(ctx, filter)
 }
 
+// CountNewVsReturning agrupa órdenes pagadas por user_id: (nuevos, total), donde
+// nuevos = clientes distintos (1ra orden c/u) y total = todas las órdenes pagadas.
+func (r *OrderRepositoryMongo) CountNewVsReturning(ctx context.Context) (nuevos, total int64, err error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{
+			"status": bson.M{"$in": bson.A{"paid", "processing", "shipped", "delivered"}},
+		}}},
+		{{Key: "$group", Value: bson.M{"_id": "$user_id", "c": bson.M{"$sum": 1}}}},
+		{{Key: "$group", Value: bson.M{"_id": nil, "nuevos": bson.M{"$sum": 1}, "total": bson.M{"$sum": "$c"}}}},
+	}
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer cursor.Close(ctx)
+	var res []struct {
+		Nuevos int64 `bson:"nuevos"`
+		Total  int64 `bson:"total"`
+	}
+	if err = cursor.All(ctx, &res); err != nil || len(res) == 0 {
+		return 0, 0, err
+	}
+	return res[0].Nuevos, res[0].Total, nil
+}
+
 // GetByStatus obtiene órdenes filtradas por estado con paginación
 func (r *OrderRepositoryMongo) GetByStatus(ctx context.Context, status string, skip int64, limit int64) ([]*domain.Order, error) {
 	opts := options.Find().

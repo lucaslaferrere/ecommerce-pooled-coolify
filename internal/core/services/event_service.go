@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"log"
 	"sort"
 	"time"
 
@@ -105,6 +106,58 @@ func (s *EventService) GetAnalytics(ctx context.Context, period string) (*domain
 		ConversionRate: convRate,
 		ByDay:          byDay,
 		TopProducts:    topProducts,
+	}, nil
+}
+
+// GetRealtimeSnapshot arma el estado inicial del dashboard en tiempo real.
+// Los errores de cada agregación se loguean pero no abortan el snapshot: se
+// devuelve lo que se pudo calcular (siempre 200 para el frontend).
+func (s *EventService) GetRealtimeSnapshot(ctx context.Context, activeCount int) (*domain.RealtimeSnapshot, error) {
+	loc, err := time.LoadLocation("America/Argentina/Buenos_Aires")
+	if err != nil {
+		log.Printf("snapshot: no se pudo cargar timezone AR: %v — usando time.Local", err)
+		loc = time.Local
+	}
+	now := time.Now().In(loc)
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+	hourAgo := now.Add(-1 * time.Hour)
+	dayAgo := now.Add(-24 * time.Hour)
+
+	paidStatuses := []string{"paid", "processing", "shipped", "delivered"}
+
+	carritos, err := s.repo.CountByType(ctx, "cart_add", todayStart, now)
+	if err != nil {
+		log.Printf("snapshot cart_add: %v", err)
+	}
+	enPago, err := s.repo.CountByType(ctx, "checkout_start", todayStart, now)
+	if err != nil {
+		log.Printf("snapshot checkout_start: %v", err)
+	}
+	comprasHoy, err := s.orderRepo.CountByStatusInPeriod(ctx, paidStatuses, todayStart, now)
+	if err != nil {
+		log.Printf("snapshot compras_hoy: %v", err)
+	}
+	ultimaHora, err := s.repo.CountUniqueSessionsAny(ctx, hourAgo, now)
+	if err != nil {
+		log.Printf("snapshot visitantes_ultima_hora: %v", err)
+	}
+	locations, err := s.repo.SessionsByLocation(ctx, dayAgo, now)
+	if err != nil {
+		log.Printf("snapshot sesiones_por_ubicacion: %v", err)
+	}
+	nuevos, total, err := s.orderRepo.CountNewVsReturning(ctx)
+	if err != nil {
+		log.Printf("snapshot nuevos_vs_recurrentes: %v", err)
+	}
+
+	return &domain.RealtimeSnapshot{
+		VisitantesActivos:    activeCount,
+		VisitantesUltimaHora: ultimaHora,
+		CarritosActivos:      carritos,
+		EnPago:               enPago,
+		ComprasHoy:           comprasHoy,
+		SesionesPorUbicacion: locations,
+		NuevosVsRecurrentes:  domain.NewVsReturning{Nuevos: nuevos, Recurrentes: total - nuevos},
 	}, nil
 }
 

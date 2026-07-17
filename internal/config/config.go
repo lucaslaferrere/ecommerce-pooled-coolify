@@ -18,6 +18,7 @@ type Config struct {
 	AllowedOrigin   string // Origen permitido en CORS (frontend URL)
 	FrontendURL     string // URL pública del frontend (para generar cart links)
 	ShutdownTimeout int    // segundos para graceful shutdown
+	GeoIPDBPath     string // ruta al archivo GeoLite2-City.mmdb (vacío = geo desactivada)
 
 	// Resend (email)
 	ResendAPIKey  string   // API key de Resend
@@ -53,6 +54,7 @@ func Load() *Config {
 		AllowedOrigin:   getEnv("ALLOWED_ORIGIN", "http://localhost:5173"),
 		FrontendURL:     getEnv("FRONTEND_URL", "http://localhost:5173"),
 		ShutdownTimeout: getEnvInt("SHUTDOWN_TIMEOUT_SECS", 10),
+		GeoIPDBPath:     getEnv("GEOIP_DB_PATH", ""),
 
 		ResendAPIKey:  getEnv("RESEND_API_KEY", ""),
 		ResendFrom:    getEnv("RESEND_FROM", "Pooled <noreply@pooled.com.ar>"),

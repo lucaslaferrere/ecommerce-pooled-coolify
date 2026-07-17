@@ -111,6 +111,7 @@ type checkoutRequest struct {
 	DeliveryMethod   string            `json:"delivery_method"`
 	CouponCode       string            `json:"coupon_code"`
 	FacturaA         *FacturaARequest  `json:"factura_a"`
+	SessionID        string            `json:"session_id"`
 }
 
 // Checkout maneja POST /api/v1/checkout
@@ -175,7 +176,7 @@ func (h *OrderHandler) Checkout(c *gin.Context) {
 	}
 
 	// Paso 2: descontar stock y persistir la orden (estado: "pending")
-	order, err := h.orderService.Checkout(c.Request.Context(), userID, cart.Items, sd, req.CustomerName, req.CustomerEmail, req.CustomerPhone, req.DniCuit, req.Notes, req.PaymentMethod, req.DeliveryMethod, facturaA, shippingCost, discount, couponDiscount, couponCode)
+	order, err := h.orderService.Checkout(c.Request.Context(), userID, cart.Items, sd, req.CustomerName, req.CustomerEmail, req.CustomerPhone, req.DniCuit, req.Notes, req.PaymentMethod, req.DeliveryMethod, facturaA, shippingCost, discount, couponDiscount, couponCode, req.SessionID)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return

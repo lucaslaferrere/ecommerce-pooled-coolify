@@ -13,6 +13,7 @@ import (
 	"ecommerce-pooled/internal/adapters/repositories"
 	"ecommerce-pooled/internal/config"
 	"ecommerce-pooled/internal/core/services"
+	"ecommerce-pooled/internal/realtime"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -40,6 +41,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	emailTemplateRepo := repositories.NewEmailTemplateRepositoryMongo(db.Collection("email_templates"))
 
 	// ── Services ─────────────────────────────────────────────────────────────
+	realtimeHub := realtime.NewHub()
 	emailService := services.NewEmailService(cfg.ResendAPIKey, cfg.ResendFrom, cfg.OwnerEmails)
 	log.Printf("[BOOT] owner emails configurados: %d → %v", len(cfg.OwnerEmails), cfg.OwnerEmails)
 	authService := services.NewAuthService(userRepo, cfg.JWTSecret).
@@ -48,10 +50,12 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	productService := services.NewProductService(productRepo)
 	kitService             := services.NewKitService(kitRepo)
 	cartService            := services.NewCartService(productRepo, kitRepo)
-	orderService           := services.NewOrderService(orderRepo, productRepo)
+	orderService           := services.NewOrderService(orderRepo, productRepo, realtimeHub)
 	distributorLeadService := services.NewDistributorLeadService(distributorLeadRepo)
 	wizardService := services.NewWizardRecommendationService(wizardRepo)
 	eventService     := services.NewEventService(eventRepo, orderRepo)
+	geoService       := services.NewGeoService(cfg.GeoIPDBPath)
+	activeSessions   := realtime.NewActiveSessions()
 	cartLinkService  := services.NewCartLinkService(cartLinkRepo)
 	couponService    := services.NewCouponService(couponRepo, orderRepo)
 	settingService := services.NewSettingService(settingRepo)
@@ -84,7 +88,8 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	webhookHandler         := handlers.NewWebhookHandler(paymentService, orderService, emailService, cfg.MPWebhookSecret)
 	distributorLeadHandler := handlers.NewDistributorLeadHandler(distributorLeadService)
 	wizardHandler   := handlers.NewWizardRecommendationHandler(wizardService)
-	eventHandler    := handlers.NewEventHandler(eventService)
+	eventHandler    := handlers.NewEventHandler(eventService, geoService, activeSessions, realtimeHub)
+	realtimeHandler := handlers.NewRealtimeHandler(realtimeHub, eventService, activeSessions)
 	warrantyHandler  := handlers.NewWarrantyHandler(cfg.ResendAPIKey, cfg.ResendFrom)
 	cartLinkHandler      := handlers.NewCartLinkHandler(cartLinkService, cfg.FrontendURL)
 	cartStorageHandler   := handlers.NewCartStorageHandler(cartStorageService, couponService, emailService, userService, emailTemplateService)
@@ -199,6 +204,8 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 
 		admin.GET("/analytics", eventHandler.GetAnalytics)
 		admin.GET("/traffic", eventHandler.GetTraffic)
+		admin.GET("/realtime/stream", realtimeHandler.Stream)
+		admin.GET("/realtime/snapshot", realtimeHandler.Snapshot)
 
 		admin.GET("/orders", orderHandler.ListAllOrders)
 		admin.PATCH("/orders/:id/status", orderHandler.UpdateAdminOrderStatus)

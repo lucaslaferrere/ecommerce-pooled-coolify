@@ -142,6 +142,20 @@ func ensureIndexes(ctx context.Context, db *mongo.Database) error {
 				Options: options.Index().SetName("products_variant_sku"),
 			},
 		},
+		{
+			coll: "events",
+			model: mongo.IndexModel{
+				Keys:    bson.D{{Key: "session_id", Value: 1}, {Key: "created_at", Value: -1}},
+				Options: options.Index().SetName("events_session_created"),
+			},
+		},
+		{
+			coll: "events",
+			model: mongo.IndexModel{
+				Keys:    bson.D{{Key: "type", Value: 1}, {Key: "created_at", Value: -1}},
+				Options: options.Index().SetName("events_type_created"),
+			},
+		},
 	}
 
 	for _, s := range specs {

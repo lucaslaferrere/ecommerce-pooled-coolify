@@ -12,6 +12,12 @@ type Event struct {
 	Type      string                 `bson:"type" json:"type"`
 	SessionID string                 `bson:"session_id" json:"session_id"`
 	Payload   map[string]interface{} `bson:"payload,omitempty" json:"payload,omitempty"`
+	IP        string                 `bson:"ip,omitempty" json:"ip,omitempty"`
+	Country   string                 `bson:"country,omitempty" json:"country,omitempty"`
+	Province  string                 `bson:"province,omitempty" json:"province,omitempty"`
+	City      string                 `bson:"city,omitempty" json:"city,omitempty"`
+	Lat       float64                `bson:"lat,omitempty" json:"lat,omitempty"`
+	Lng       float64                `bson:"lng,omitempty" json:"lng,omitempty"`
 	CreatedAt time.Time              `bson:"created_at" json:"created_at"`
 }
 
@@ -52,6 +58,33 @@ type AnalyticsReport struct {
 type PageStat struct {
 	URL   string `json:"url"`
 	Count int64  `json:"count"`
+}
+
+// LocationStat: sesiones únicas por país/provincia/ciudad, con coordenadas para el mapa.
+type LocationStat struct {
+	Country  string  `bson:"country" json:"country"`
+	Province string  `bson:"province" json:"province"`
+	City     string  `bson:"city" json:"city"`
+	Lat      float64 `bson:"lat" json:"lat"`
+	Lng      float64 `bson:"lng" json:"lng"`
+	Sessions int64   `bson:"sessions" json:"sessions"`
+}
+
+// NewVsReturning: órdenes de clientes nuevos vs recurrentes.
+type NewVsReturning struct {
+	Nuevos      int64 `json:"nuevos"`
+	Recurrentes int64 `json:"recurrentes"`
+}
+
+// RealtimeSnapshot: respuesta de GET /admin/realtime/snapshot.
+type RealtimeSnapshot struct {
+	VisitantesActivos    int            `json:"visitantes_activos"`
+	VisitantesUltimaHora int64          `json:"visitantes_ultima_hora"`
+	CarritosActivos      int64          `json:"carritos_activos"`
+	EnPago               int64          `json:"en_pago"`
+	ComprasHoy           int64          `json:"compras_hoy"`
+	SesionesPorUbicacion []LocationStat `json:"sesiones_por_ubicacion"`
+	NuevosVsRecurrentes  NewVsReturning `json:"nuevos_vs_recurrentes"`
 }
 
 // TrafficReport es la respuesta del endpoint GET /admin/traffic.

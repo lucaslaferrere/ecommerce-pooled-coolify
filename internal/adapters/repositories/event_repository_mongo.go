@@ -118,3 +118,59 @@ func (r *EventRepositoryMongo) CountUniqueSessions(ctx context.Context, eventTyp
 	}
 	return result[0].Count, nil
 }
+
+// CountUniqueSessionsAny cuenta session_id distintos en el rango, sin filtrar por tipo.
+func (r *EventRepositoryMongo) CountUniqueSessionsAny(ctx context.Context, from, to time.Time) (int64, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{
+			"created_at": bson.M{"$gte": from, "$lte": to},
+			"session_id": bson.M{"$ne": ""},
+		}}},
+		{{Key: "$group", Value: bson.M{"_id": "$session_id"}}},
+		{{Key: "$count", Value: "count"}},
+	}
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return 0, err
+	}
+	defer cursor.Close(ctx)
+	var result []struct {
+		Count int64 `bson:"count"`
+	}
+	if err = cursor.All(ctx, &result); err != nil || len(result) == 0 {
+		return 0, err
+	}
+	return result[0].Count, nil
+}
+
+// SessionsByLocation agrupa sesiones únicas por país/ciudad en el rango dado.
+func (r *EventRepositoryMongo) SessionsByLocation(ctx context.Context, from, to time.Time) ([]domain.LocationStat, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{
+			"created_at": bson.M{"$gte": from, "$lte": to},
+			"country":    bson.M{"$nin": bson.A{"", nil}},
+		}}},
+		{{Key: "$group", Value: bson.M{
+			"_id":      bson.M{"country": "$country", "province": "$province", "city": "$city"},
+			"sessions": bson.M{"$addToSet": "$session_id"},
+			"lat":      bson.M{"$first": "$lat"},
+			"lng":      bson.M{"$first": "$lng"},
+		}}},
+		{{Key: "$project", Value: bson.M{
+			"country":  "$_id.country",
+			"province": "$_id.province",
+			"city":     "$_id.city",
+			"lat":      "$lat",
+			"lng":      "$lng",
+			"sessions": bson.M{"$size": "$sessions"},
+		}}},
+		{{Key: "$sort", Value: bson.M{"sessions": -1}}},
+	}
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	out := []domain.LocationStat{} // slice vacío (no nil) → JSON [] en vez de null
+	return out, cursor.All(ctx, &out)
+}

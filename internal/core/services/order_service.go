@@ -2,12 +2,14 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log"
 	"time"
 
 	"ecommerce-pooled/internal/core/domain"
 	"ecommerce-pooled/internal/core/ports"
+	"ecommerce-pooled/internal/realtime"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -15,13 +17,15 @@ import (
 type OrderService struct {
 	orderRepository   ports.OrderRepository
 	productRepository ports.ProductRepository
+	hub               *realtime.Hub
 }
 
 // NewOrderService crea una nueva instancia de OrderService
-func NewOrderService(orderRepository ports.OrderRepository, productRepository ports.ProductRepository) *OrderService {
+func NewOrderService(orderRepository ports.OrderRepository, productRepository ports.ProductRepository, hub *realtime.Hub) *OrderService {
 	return &OrderService{
 		orderRepository:   orderRepository,
 		productRepository: productRepository,
+		hub:               hub,
 	}
 }
 
@@ -279,12 +283,24 @@ func (s *OrderService) ConfirmPayment(ctx context.Context, orderID primitive.Obj
 	order.Status = "paid"
 	order.PaymentID = paymentID
 	order.UpdatedAt = time.Now()
-	return s.orderRepository.Update(ctx, order)
+	if err := s.orderRepository.Update(ctx, order); err != nil {
+		return err
+	}
+	if s.hub != nil {
+		msg, _ := json.Marshal(map[string]any{
+			"type":     "sale",
+			"total":    order.Total,
+			"city":     order.ShippingDetails.City,
+			"province": order.ShippingDetails.Province,
+		})
+		s.hub.Broadcast(string(msg))
+	}
+	return nil
 }
 
 // Checkout descuenta stock atómicamente y crea la orden. Recibe ítems ya validados
 // (con UnitPrice calculado) provenientes de CartService.ValidateCart.
-func (s *OrderService) Checkout(ctx context.Context, userID primitive.ObjectID, items []domain.CartItem, shipping domain.ShippingDetails, customerName, customerEmail, customerPhone, dniCuit, notes, paymentMethod, deliveryMethod string, facturaA *domain.FacturaA, shippingCost, discount, couponDiscount float64, couponCode string) (*domain.Order, error) {
+func (s *OrderService) Checkout(ctx context.Context, userID primitive.ObjectID, items []domain.CartItem, shipping domain.ShippingDetails, customerName, customerEmail, customerPhone, dniCuit, notes, paymentMethod, deliveryMethod string, facturaA *domain.FacturaA, shippingCost, discount, couponDiscount float64, couponCode, sessionID string) (*domain.Order, error) {
 	if userID.IsZero() {
 		return nil, errors.New("ID de usuario requerido")
 	}
@@ -352,6 +368,7 @@ func (s *OrderService) Checkout(ctx context.Context, userID primitive.ObjectID, 
 		CouponCode:      couponCode,
 		CouponDiscount:  couponDiscount,
 		FacturaA:        facturaA,
+		SessionID:       sessionID,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}

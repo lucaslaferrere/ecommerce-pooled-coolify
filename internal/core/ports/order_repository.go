@@ -43,4 +43,9 @@ type OrderRepository interface {
 
 	// Count devuelve el total de órdenes, opcionalmente filtrado por status.
 	Count(ctx context.Context, status string) (int64, error)
+
+	// CountNewVsReturning agrupa órdenes (solo estados pagados) por user_id:
+	// devuelve (nuevos, total), donde nuevos = clientes distintos (1ra orden c/u)
+	// y total = todas las órdenes pagadas.
+	CountNewVsReturning(ctx context.Context) (nuevos, total int64, err error)
 }
