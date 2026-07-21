@@ -48,4 +48,17 @@ type OrderRepository interface {
 	// devuelve (nuevos, total), donde nuevos = clientes distintos (1ra orden c/u)
 	// y total = todas las órdenes pagadas.
 	CountNewVsReturning(ctx context.Context) (nuevos, total int64, err error)
+
+	// SalesByPeriod agrega ventas pagadas por mes ("month") o día ("day") en el rango dado.
+	SalesByPeriod(ctx context.Context, from, to time.Time, granularity string) ([]domain.SalesBucket, error)
+
+	// SalesTotals devuelve totales del período: facturación y órdenes pagadas,
+	// más el conteo de todas las órdenes (cualquier estado).
+	SalesTotals(ctx context.Context, from, to time.Time) (domain.SalesTotals, error)
+
+	// SalesByCategory agrega facturación pagada por categoría de producto.
+	SalesByCategory(ctx context.Context, from, to time.Time) ([]domain.CategoryRevenue, error)
+
+	// TopSellingProducts devuelve los productos más vendidos por unidades.
+	TopSellingProducts(ctx context.Context, from, to time.Time, limit int) ([]domain.ProductSales, error)
 }

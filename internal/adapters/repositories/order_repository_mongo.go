@@ -242,6 +242,147 @@ func (r *OrderRepositoryMongo) Count(ctx context.Context, status string) (int64,
 	return r.collection.CountDocuments(ctx, filter)
 }
 
+// paidStatusList son los estados que cuentan como venta concretada.
+var paidStatusList = bson.A{"paid", "processing", "shipped", "delivered"}
+
+// SalesTotals devuelve totales del período en una sola pasada: todas las órdenes,
+// las pagadas y su facturación.
+func (r *OrderRepositoryMongo) SalesTotals(ctx context.Context, from, to time.Time) (domain.SalesTotals, error) {
+	isPaid := bson.M{"$in": bson.A{"$status", paidStatusList}}
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"created_at": bson.M{"$gte": from, "$lte": to}}}},
+		{{Key: "$group", Value: bson.M{
+			"_id":         nil,
+			"orders":      bson.M{"$sum": 1},
+			"paid_orders": bson.M{"$sum": bson.M{"$cond": bson.A{isPaid, 1, 0}}},
+			"revenue":     bson.M{"$sum": bson.M{"$cond": bson.A{isPaid, "$total", 0}}},
+		}}},
+	}
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return domain.SalesTotals{}, err
+	}
+	defer cursor.Close(ctx)
+	var res []struct {
+		Orders     int64   `bson:"orders"`
+		PaidOrders int64   `bson:"paid_orders"`
+		Revenue    float64 `bson:"revenue"`
+	}
+	if err = cursor.All(ctx, &res); err != nil || len(res) == 0 {
+		return domain.SalesTotals{}, err
+	}
+	t := domain.SalesTotals{Revenue: res[0].Revenue, Orders: res[0].Orders, PaidOrders: res[0].PaidOrders}
+	if t.PaidOrders > 0 {
+		t.AOV = t.Revenue / float64(t.PaidOrders)
+	}
+	return t, nil
+}
+
+// SalesByCategory agrega facturación pagada por categoría (join con products).
+// Los ítems que no matchean un producto (ej. kits) caen en "otros".
+func (r *OrderRepositoryMongo) SalesByCategory(ctx context.Context, from, to time.Time) ([]domain.CategoryRevenue, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{
+			"status":     bson.M{"$in": paidStatusList},
+			"created_at": bson.M{"$gte": from, "$lte": to},
+		}}},
+		{{Key: "$unwind", Value: "$items"}},
+		{{Key: "$lookup", Value: bson.M{
+			"from":         "products",
+			"localField":   "items.product_id",
+			"foreignField": "_id",
+			"as":           "prod",
+		}}},
+		{{Key: "$group", Value: bson.M{
+			"_id": bson.M{"$ifNull": bson.A{
+				bson.M{"$arrayElemAt": bson.A{"$prod.category", 0}}, "otros",
+			}},
+			"revenue": bson.M{"$sum": bson.M{"$multiply": bson.A{"$items.unit_price", "$items.quantity"}}},
+		}}},
+		{{Key: "$sort", Value: bson.M{"revenue": -1}}},
+	}
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	out := []domain.CategoryRevenue{}
+	return out, cursor.All(ctx, &out)
+}
+
+// TopSellingProducts agrupa los ítems vendidos por producto, ordenados por unidades.
+func (r *OrderRepositoryMongo) TopSellingProducts(ctx context.Context, from, to time.Time, limit int) ([]domain.ProductSales, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{
+			"status":     bson.M{"$in": paidStatusList},
+			"created_at": bson.M{"$gte": from, "$lte": to},
+		}}},
+		{{Key: "$unwind", Value: "$items"}},
+		{{Key: "$group", Value: bson.M{
+			"_id":     "$items.product_id",
+			"name":    bson.M{"$first": "$items.name"},
+			"units":   bson.M{"$sum": "$items.quantity"},
+			"revenue": bson.M{"$sum": bson.M{"$multiply": bson.A{"$items.unit_price", "$items.quantity"}}},
+		}}},
+		{{Key: "$sort", Value: bson.M{"units": -1}}},
+		{{Key: "$limit", Value: int64(limit)}},
+	}
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	var raw []struct {
+		ID      primitive.ObjectID `bson:"_id"`
+		Name    string             `bson:"name"`
+		Units   int64              `bson:"units"`
+		Revenue float64            `bson:"revenue"`
+	}
+	if err = cursor.All(ctx, &raw); err != nil {
+		return nil, err
+	}
+	out := make([]domain.ProductSales, 0, len(raw))
+	for _, p := range raw {
+		out = append(out, domain.ProductSales{
+			ProductID: p.ID.Hex(), Name: p.Name, Units: p.Units, Revenue: p.Revenue,
+		})
+	}
+	return out, nil
+}
+
+// SalesByPeriod agrega ventas pagadas por mes ("month") o día ("day") en el rango.
+// Los buckets se calculan en timezone de Argentina para que el corte de día/mes
+// coincida con lo que ve el admin.
+func (r *OrderRepositoryMongo) SalesByPeriod(ctx context.Context, from, to time.Time, granularity string) ([]domain.SalesBucket, error) {
+	format := "%Y-%m"
+	if granularity == "day" {
+		format = "%Y-%m-%d"
+	}
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{
+			"status":     bson.M{"$in": bson.A{"paid", "processing", "shipped", "delivered"}},
+			"created_at": bson.M{"$gte": from, "$lte": to},
+		}}},
+		{{Key: "$group", Value: bson.M{
+			"_id": bson.M{"$dateToString": bson.M{
+				"format":   format,
+				"date":     "$created_at",
+				"timezone": "America/Argentina/Buenos_Aires",
+			}},
+			"revenue": bson.M{"$sum": "$total"},
+			"orders":  bson.M{"$sum": 1},
+		}}},
+		{{Key: "$sort", Value: bson.M{"_id": 1}}},
+	}
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	out := []domain.SalesBucket{} // slice vacío (no nil) → JSON [] en vez de null
+	return out, cursor.All(ctx, &out)
+}
+
 // CountNewVsReturning agrupa órdenes pagadas por user_id: (nuevos, total), donde
 // nuevos = clientes distintos (1ra orden c/u) y total = todas las órdenes pagadas.
 func (r *OrderRepositoryMongo) CountNewVsReturning(ctx context.Context) (nuevos, total int64, err error) {

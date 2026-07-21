@@ -20,6 +20,45 @@ type FacturaA struct {
 	CUIT        string `bson:"cuit" json:"cuit"`
 }
 
+// SalesBucket representa ventas pagadas agregadas por período (mes o día).
+// Period es "2006-01" con granularidad mes, o "2006-01-02" con granularidad día.
+type SalesBucket struct {
+	Period  string  `bson:"_id" json:"period"`
+	Revenue float64 `bson:"revenue" json:"revenue"`
+	Orders  int64   `bson:"orders" json:"orders"`
+}
+
+// SalesTotals son los totales de un período (para las KPIs del dashboard).
+type SalesTotals struct {
+	Revenue    float64 `json:"revenue"`
+	Orders     int64   `json:"orders"`      // todas las órdenes del período
+	PaidOrders int64   `json:"paid_orders"` // solo estados pagados
+	AOV        float64 `json:"aov"`         // revenue / paid_orders
+}
+
+// CategoryRevenue: facturación por categoría de producto.
+type CategoryRevenue struct {
+	Category string  `bson:"_id" json:"category"`
+	Revenue  float64 `bson:"revenue" json:"revenue"`
+}
+
+// ProductSales: unidades y facturación por producto.
+type ProductSales struct {
+	ProductID string  `json:"product_id"`
+	Name      string  `json:"name"`
+	Units     int64   `json:"units"`
+	Revenue   float64 `json:"revenue"`
+}
+
+// SalesOverview es la respuesta de GET /admin/analytics/overview.
+type SalesOverview struct {
+	Current     SalesTotals       `json:"current"`
+	Previous    SalesTotals       `json:"previous"`
+	Series      []SalesBucket     `json:"series"`
+	ByCategory  []CategoryRevenue `json:"by_category"`
+	TopProducts []ProductSales    `json:"top_products"`
+}
+
 // Order representa la entidad de orden/pedido en la aplicación
 type Order struct {
 	ID              primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`

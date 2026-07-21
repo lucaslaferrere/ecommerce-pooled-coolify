@@ -109,6 +109,48 @@ func (s *EventService) GetAnalytics(ctx context.Context, period string) (*domain
 	}, nil
 }
 
+// GetSalesSeries devuelve la evolución de ventas pagadas agregada por mes o día.
+func (s *EventService) GetSalesSeries(ctx context.Context, from, to time.Time, granularity string) ([]domain.SalesBucket, error) {
+	if granularity != "day" {
+		granularity = "month"
+	}
+	return s.orderRepo.SalesByPeriod(ctx, from, to, granularity)
+}
+
+// GetSalesOverview arma todas las métricas de venta del dashboard para un rango,
+// más el rango previo (para los % de tendencia). Los errores parciales se loguean
+// y se devuelve lo que se pudo calcular.
+func (s *EventService) GetSalesOverview(ctx context.Context, from, to, prevFrom, prevTo time.Time, granularity string) (*domain.SalesOverview, error) {
+	current, err := s.orderRepo.SalesTotals(ctx, from, to)
+	if err != nil {
+		log.Printf("overview totales actuales: %v", err)
+	}
+	previous, err := s.orderRepo.SalesTotals(ctx, prevFrom, prevTo)
+	if err != nil {
+		log.Printf("overview totales previos: %v", err)
+	}
+	series, err := s.GetSalesSeries(ctx, from, to, granularity)
+	if err != nil {
+		log.Printf("overview serie: %v", err)
+	}
+	byCategory, err := s.orderRepo.SalesByCategory(ctx, from, to)
+	if err != nil {
+		log.Printf("overview categorías: %v", err)
+	}
+	topProducts, err := s.orderRepo.TopSellingProducts(ctx, from, to, 5)
+	if err != nil {
+		log.Printf("overview top productos: %v", err)
+	}
+
+	return &domain.SalesOverview{
+		Current:     current,
+		Previous:    previous,
+		Series:      series,
+		ByCategory:  byCategory,
+		TopProducts: topProducts,
+	}, nil
+}
+
 // GetRealtimeSnapshot arma el estado inicial del dashboard en tiempo real.
 // Los errores de cada agregación se loguean pero no abortan el snapshot: se
 // devuelve lo que se pudo calcular (siempre 200 para el frontend).

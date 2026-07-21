@@ -203,6 +203,8 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		admin.DELETE("/coupons/:id", couponHandler.Delete)
 
 		admin.GET("/analytics", eventHandler.GetAnalytics)
+		admin.GET("/analytics/sales", eventHandler.GetSalesSeries)
+		admin.GET("/analytics/overview", eventHandler.GetSalesOverview)
 		admin.GET("/traffic", eventHandler.GetTraffic)
 		admin.GET("/realtime/stream", realtimeHandler.Stream)
 		admin.GET("/realtime/snapshot", realtimeHandler.Snapshot)

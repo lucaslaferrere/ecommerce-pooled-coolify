@@ -143,6 +143,22 @@ func ensureIndexes(ctx context.Context, db *mongo.Database) error {
 			},
 		},
 		{
+			// Soporta las agregaciones del dashboard: filtran por status + rango de created_at.
+			coll: "orders",
+			model: mongo.IndexModel{
+				Keys:    bson.D{{Key: "status", Value: 1}, {Key: "created_at", Value: -1}},
+				Options: options.Index().SetName("orders_status_created"),
+			},
+		},
+		{
+			// Rangos de fecha sin filtro de estado (ej. conteo de todas las órdenes).
+			coll: "orders",
+			model: mongo.IndexModel{
+				Keys:    bson.D{{Key: "created_at", Value: -1}},
+				Options: options.Index().SetName("orders_created_at"),
+			},
+		},
+		{
 			coll: "events",
 			model: mongo.IndexModel{
 				Keys:    bson.D{{Key: "session_id", Value: 1}, {Key: "created_at", Value: -1}},

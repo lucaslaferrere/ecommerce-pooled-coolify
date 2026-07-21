@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"ecommerce-pooled/internal/core/domain"
 	"ecommerce-pooled/internal/core/services"
@@ -63,6 +64,91 @@ func (h *EventHandler) GetTraffic(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, report)
+}
+
+// GetSalesSeries maneja GET /api/v1/admin/analytics/sales (solo admin).
+// Query: from, to (YYYY-MM-DD o RFC3339) y granularity=month|day.
+// Por defecto: últimos 12 meses con granularidad mensual.
+func (h *EventHandler) GetSalesSeries(c *gin.Context) {
+	granularity := c.DefaultQuery("granularity", "month")
+	if granularity != "day" && granularity != "month" {
+		granularity = "month"
+	}
+
+	loc, err := time.LoadLocation("America/Argentina/Buenos_Aires")
+	if err != nil {
+		loc = time.Local
+	}
+	now := time.Now().In(loc)
+
+	parse := func(v string, def time.Time) time.Time {
+		if v == "" {
+			return def
+		}
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			return t
+		}
+		if t, err := time.ParseInLocation("2006-01-02", v, loc); err == nil {
+			return t
+		}
+		return def
+	}
+
+	// Default: desde el 1° de mes, 11 meses atrás (12 meses incluyendo el actual).
+	defFrom := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc).AddDate(0, -11, 0)
+	from := parse(c.Query("from"), defFrom)
+	to := parse(c.Query("to"), now)
+
+	series, err := h.service.GetSalesSeries(c.Request.Context(), from, to, granularity)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"series": series, "granularity": granularity})
+}
+
+// GetSalesOverview maneja GET /api/v1/admin/analytics/overview (solo admin).
+// Query: from, to (YYYY-MM-DD o RFC3339) y granularity=month|day.
+// El período previo se calcula con el mismo span inmediatamente anterior.
+func (h *EventHandler) GetSalesOverview(c *gin.Context) {
+	granularity := c.DefaultQuery("granularity", "day")
+	if granularity != "day" && granularity != "month" {
+		granularity = "day"
+	}
+
+	loc, err := time.LoadLocation("America/Argentina/Buenos_Aires")
+	if err != nil {
+		loc = time.Local
+	}
+	now := time.Now().In(loc)
+
+	parse := func(v string, def time.Time) time.Time {
+		if v == "" {
+			return def
+		}
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			return t
+		}
+		if t, err := time.ParseInLocation("2006-01-02", v, loc); err == nil {
+			return t
+		}
+		return def
+	}
+
+	from := parse(c.Query("from"), now.AddDate(0, 0, -29))
+	to := parse(c.Query("to"), now)
+
+	// Período previo: mismo span, inmediatamente anterior.
+	span := to.Sub(from)
+	prevTo := from.Add(-time.Millisecond)
+	prevFrom := prevTo.Add(-span)
+
+	overview, err := h.service.GetSalesOverview(c.Request.Context(), from, to, prevFrom, prevTo, granularity)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, overview)
 }
 
 // GetAnalytics maneja GET /api/v1/admin/analytics?period=7d (solo admin)
