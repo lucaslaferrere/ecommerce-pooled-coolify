@@ -59,6 +59,18 @@ type SalesOverview struct {
 	TopProducts []ProductSales    `json:"top_products"`
 }
 
+// BuyerExportRow es una fila del export de compradores (una por persona).
+type BuyerExportRow struct {
+	Name         string
+	Email        string
+	Phone        string
+	Province     string
+	Products     string // resumen "Producto x3, Otro x1"
+	TotalSpent   float64
+	LastPurchase time.Time
+	OrdersCount  int
+}
+
 // Order representa la entidad de orden/pedido en la aplicación
 type Order struct {
 	ID              primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`

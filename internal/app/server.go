@@ -210,6 +210,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		admin.GET("/realtime/snapshot", realtimeHandler.Snapshot)
 
 		admin.GET("/orders", orderHandler.ListAllOrders)
+		admin.GET("/orders/export.csv", orderHandler.ExportBuyersCSV)
 		admin.PATCH("/orders/:id/status", orderHandler.UpdateAdminOrderStatus)
 		admin.DELETE("/orders/:id", orderHandler.DeleteOrder)
 		admin.POST("/orders/:id/invoice", invoiceHandler.Upload)

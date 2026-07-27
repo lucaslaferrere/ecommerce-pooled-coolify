@@ -61,4 +61,8 @@ type OrderRepository interface {
 
 	// TopSellingProducts devuelve los productos más vendidos por unidades.
 	TopSellingProducts(ctx context.Context, from, to time.Time, limit int) ([]domain.ProductSales, error)
+
+	// FindByStatuses devuelve todas las órdenes con alguno de los estados dados,
+	// ordenadas por fecha ascendente (sin paginar — para exports).
+	FindByStatuses(ctx context.Context, statuses []string) ([]*domain.Order, error)
 }

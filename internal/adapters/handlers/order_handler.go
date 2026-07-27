@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"context"
+	"encoding/csv"
 	"log"
 	"math"
 	"net/http"
 	"strconv"
+	"time"
 
 	"ecommerce-pooled/internal/core/domain"
 	"ecommerce-pooled/internal/core/services"
@@ -314,6 +316,43 @@ func (h *OrderHandler) UpdateAdminOrderStatus(c *gin.Context) {
 	}()
 
 	c.JSON(http.StatusOK, gin.H{"message": "estado actualizado"})
+}
+
+// ExportBuyersCSV maneja GET /api/v1/admin/orders/export.csv (solo admin).
+// Devuelve un CSV (UTF-8 con BOM, abre bien en Excel) con una fila por comprador
+// confirmado, deduplicado por email, para email marketing.
+func (h *OrderHandler) ExportBuyersCSV(c *gin.Context) {
+	rows, err := h.orderService.ExportBuyers(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	filename := "compradores-" + time.Now().Format("2006-01-02") + ".csv"
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", `attachment; filename="`+filename+`"`)
+
+	// BOM para que Excel interprete UTF-8 (acentos correctos).
+	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
+
+	w := csv.NewWriter(c.Writer)
+	_ = w.Write([]string{
+		"Nombre y Apellido", "Email", "Teléfono", "Provincia",
+		"Qué compró", "Total gastado", "Última compra", "Cantidad de compras",
+	})
+	for _, r := range rows {
+		_ = w.Write([]string{
+			r.Name,
+			r.Email,
+			r.Phone,
+			r.Province,
+			r.Products,
+			strconv.FormatInt(int64(math.Round(r.TotalSpent)), 10),
+			r.LastPurchase.Format("02/01/2006"),
+			strconv.Itoa(r.OrdersCount),
+		})
+	}
+	w.Flush()
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

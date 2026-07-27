@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"ecommerce-pooled/internal/core/domain"
@@ -183,6 +185,76 @@ func (s *OrderService) CancelOrReject(ctx context.Context, id primitive.ObjectID
 	}
 
 	return s.orderRepository.UpdateStatus(ctx, id, status)
+}
+
+// ExportBuyers devuelve una fila por comprador confirmado (deduplicado por email),
+// con los datos y el resumen de compra para email marketing.
+func (s *OrderService) ExportBuyers(ctx context.Context) ([]domain.BuyerExportRow, error) {
+	orders, err := s.orderRepository.FindByStatuses(ctx, []string{"paid", "processing", "shipped", "delivered"})
+	if err != nil {
+		return nil, err
+	}
+
+	type agg struct {
+		row     domain.BuyerExportRow
+		units   map[string]int // producto → unidades acumuladas
+		order   []string       // orden de aparición de productos
+	}
+	byEmail := make(map[string]*agg)
+	var emails []string // preserva el orden (más antiguo primero, ya viene ordenado)
+
+	for _, o := range orders {
+		key := strings.ToLower(strings.TrimSpace(o.CustomerEmail))
+		if key == "" {
+			continue
+		}
+		a, ok := byEmail[key]
+		if !ok {
+			a = &agg{units: map[string]int{}, row: domain.BuyerExportRow{Email: o.CustomerEmail}}
+			byEmail[key] = a
+			emails = append(emails, key)
+		}
+		// Los datos "más nuevos" pisan a los viejos (orders viene asc por fecha).
+		if o.CustomerName != "" {
+			a.row.Name = o.CustomerName
+		}
+		if o.CustomerPhone != "" {
+			a.row.Phone = o.CustomerPhone
+		}
+		if o.ShippingDetails.Province != "" {
+			a.row.Province = o.ShippingDetails.Province
+		}
+		a.row.TotalSpent += o.Total
+		a.row.OrdersCount++
+		if o.CreatedAt.After(a.row.LastPurchase) {
+			a.row.LastPurchase = o.CreatedAt
+		}
+		for _, it := range o.Items {
+			name := it.Name
+			if name == "" {
+				name = it.VariantSKU
+			}
+			if name == "" {
+				continue
+			}
+			if _, seen := a.units[name]; !seen {
+				a.order = append(a.order, name)
+			}
+			a.units[name] += it.Quantity
+		}
+	}
+
+	rows := make([]domain.BuyerExportRow, 0, len(emails))
+	for _, key := range emails {
+		a := byEmail[key]
+		parts := make([]string, 0, len(a.order))
+		for _, name := range a.order {
+			parts = append(parts, fmt.Sprintf("%s x%d", name, a.units[name]))
+		}
+		a.row.Products = strings.Join(parts, ", ")
+		rows = append(rows, a.row)
+	}
+	return rows, nil
 }
 
 // DeleteOrder elimina una orden

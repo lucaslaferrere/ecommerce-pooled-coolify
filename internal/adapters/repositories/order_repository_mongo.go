@@ -245,6 +245,22 @@ func (r *OrderRepositoryMongo) Count(ctx context.Context, status string) (int64,
 // paidStatusList son los estados que cuentan como venta concretada.
 var paidStatusList = bson.A{"paid", "processing", "shipped", "delivered"}
 
+// FindByStatuses devuelve todas las órdenes con alguno de los estados, ordenadas
+// por fecha ascendente. Sin paginar: pensado para exports puntuales del admin.
+func (r *OrderRepositoryMongo) FindByStatuses(ctx context.Context, statuses []string) ([]*domain.Order, error) {
+	opts := options.Find().SetSort(bson.D{{Key: "created_at", Value: 1}})
+	cursor, err := r.collection.Find(ctx, bson.M{"status": bson.M{"$in": statuses}}, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	var orders []*domain.Order
+	if err = cursor.All(ctx, &orders); err != nil {
+		return nil, err
+	}
+	return orders, nil
+}
+
 // SalesTotals devuelve totales del período en una sola pasada: todas las órdenes,
 // las pagadas y su facturación.
 func (r *OrderRepositoryMongo) SalesTotals(ctx context.Context, from, to time.Time) (domain.SalesTotals, error) {
