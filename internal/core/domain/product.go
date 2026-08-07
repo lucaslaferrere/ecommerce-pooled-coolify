@@ -14,6 +14,7 @@ type Variant struct {
 	Attr3           string  `bson:"attr3,omitempty" json:"attr3,omitempty"`
 	Stock           int     `bson:"stock" json:"stock"`
 	PriceAdjustment float64 `bson:"price_adjustment" json:"price_adjustment"` // Ajuste al precio base
+	Image           string  `bson:"image,omitempty" json:"image,omitempty"`  // una de las fotos de Product.Images; vacío = usa la galería general
 }
 
 // Spec representa un par clave/valor de la ficha técnica del producto
