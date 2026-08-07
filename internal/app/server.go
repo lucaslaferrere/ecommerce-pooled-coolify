@@ -81,6 +81,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	authHandler := handlers.NewAuthHandler(authService, emailService)
 	userHandler := handlers.NewUserHandler(userService)
 	productHandler := handlers.NewProductHandler(productService, imageStorage)
+	uploadHandler          := handlers.NewUploadHandler(imageStorage)
 	kitHandler             := handlers.NewKitHandler(kitService, imageStorage)
 	couponHandler          := handlers.NewCouponHandler(couponService)
 	settingHandler := handlers.NewSettingHandler(settingService)
@@ -179,6 +180,8 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 
 		// Cart links (solo admin puede crear)
 		admin.POST("/cart-links", cartLinkHandler.Create)
+
+		admin.POST("/uploads/image", uploadHandler.UploadImage)
 
 		admin.GET("/products", productHandler.ListAdminProducts)
 		admin.POST("/products", productHandler.CreateProduct)
