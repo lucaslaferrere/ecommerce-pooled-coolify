@@ -1,3 +1,7 @@
 .env
 cmd/api/.env
 *.env
+
+# Fotos subidas por usuarios (uploads locales, no van al repo)
+uploads/
+cmd/api/uploads/
