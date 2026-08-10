@@ -128,6 +128,11 @@ func (r *UserRepositoryMongo) Delete(ctx context.Context, id primitive.ObjectID)
 	return nil
 }
 
+// CountByRole cuenta cuántos usuarios tienen el rol dado.
+func (r *UserRepositoryMongo) CountByRole(ctx context.Context, role string) (int64, error) {
+	return r.collection.CountDocuments(ctx, bson.M{"role": role})
+}
+
 // List obtiene una lista de usuarios con paginación
 func (r *UserRepositoryMongo) List(ctx context.Context, skip int64, limit int64) ([]*domain.User, error) {
 	opts := options.Find().

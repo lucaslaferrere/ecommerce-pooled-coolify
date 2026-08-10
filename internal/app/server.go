@@ -183,6 +183,8 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 
 		admin.GET("/users", userHandler.ListUsers)
 		admin.DELETE("/users/:id", userHandler.DeleteUser)
+		admin.GET("/bootstrap-superadmin", userHandler.BootstrapSuperadminStatus)
+		admin.POST("/bootstrap-superadmin", userHandler.BootstrapSuperadmin)
 		admin.POST("/users/invite-admin", handlers.SuperAdminMiddleware(), userHandler.InviteAdmin)
 		admin.PATCH("/users/:id/role", handlers.SuperAdminMiddleware(), userHandler.ChangeUserRole)
 

@@ -26,4 +26,7 @@ type UserRepository interface {
 
 	// List obtiene una lista de usuarios con paginación
 	List(ctx context.Context, skip int64, limit int64) ([]*domain.User, error)
+
+	// CountByRole cuenta cuántos usuarios tienen el rol dado.
+	CountByRole(ctx context.Context, role string) (int64, error)
 }

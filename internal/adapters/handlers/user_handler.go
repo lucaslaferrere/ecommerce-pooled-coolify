@@ -222,6 +222,38 @@ func (h *UserHandler) RegisterRoutes(router *gin.Engine) {
 	}
 }
 
+// BootstrapSuperadminStatus maneja GET /admin/bootstrap-superadmin (cualquier
+// admin). Indica si todavía se puede usar el bootstrap (no hay superadmin).
+func (h *UserHandler) BootstrapSuperadminStatus(c *gin.Context) {
+	available, err := h.authService.SuperadminBootstrapAvailable(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"available": available})
+}
+
+// BootstrapSuperadmin maneja POST /admin/bootstrap-superadmin (cualquier
+// admin autenticado). Se auto-promueve a superadmin — solo funciona si
+// todavía no existe ninguno. Devuelve tokens frescos con el rol nuevo.
+func (h *UserHandler) BootstrapSuperadmin(c *gin.Context) {
+	actorIDRaw, _ := c.Get("user_id")
+	actorIDStr, _ := actorIDRaw.(string)
+	actorID, err := primitive.ObjectIDFromHex(actorIDStr)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "token inválido"})
+		return
+	}
+
+	tokens, err := h.authService.BootstrapSuperadmin(c.Request.Context(), actorID)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, tokens)
+}
+
 // InviteAdmin maneja POST /admin/users/invite-admin (solo superadmin).
 // Da de alta (o promueve) a un usuario como admin y le manda un mail para
 // que defina su propia contraseña.

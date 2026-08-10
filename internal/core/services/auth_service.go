@@ -353,6 +353,46 @@ func (s *AuthService) ChangeUserRole(ctx context.Context, userID primitive.Objec
 	return user, nil
 }
 
+// SuperadminBootstrapAvailable indica si todavía no existe ningún superadmin
+// en el sistema — solo en ese caso se puede usar BootstrapSuperadmin.
+func (s *AuthService) SuperadminBootstrapAvailable(ctx context.Context) (bool, error) {
+	count, err := s.userRepository.CountByRole(ctx, "superadmin")
+	if err != nil {
+		return false, err
+	}
+	return count == 0, nil
+}
+
+// BootstrapSuperadmin promueve al usuario dado a "superadmin", pero SOLO si
+// todavía no existe ningún superadmin en el sistema (evita que se use más de
+// una vez). Devuelve tokens frescos con el rol nuevo, para no forzar un
+// logout/login en quien se auto-promueve.
+func (s *AuthService) BootstrapSuperadmin(ctx context.Context, userID primitive.ObjectID) (*TokenPair, error) {
+	available, err := s.SuperadminBootstrapAvailable(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !available {
+		return nil, errors.New("ya existe un superadmin en el sistema")
+	}
+
+	user, err := s.userRepository.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, errors.New("usuario no encontrado")
+	}
+
+	user.Role = "superadmin"
+	user.UpdatedAt = time.Now()
+	if err := s.userRepository.Update(ctx, user); err != nil {
+		return nil, err
+	}
+
+	return s.GenerateTokens(user.ID.Hex(), user.Role, user.Email)
+}
+
 // ResetPassword verifica el código y actualiza la contraseña del usuario.
 func (s *AuthService) ResetPassword(ctx context.Context, email, code, newPassword string) error {
 	if s.passwordResetRepo == nil {
