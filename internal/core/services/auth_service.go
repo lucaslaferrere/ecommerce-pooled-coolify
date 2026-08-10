@@ -12,6 +12,7 @@ import (
 	"ecommerce-pooled/internal/core/ports"
 
 	"github.com/golang-jwt/jwt/v5"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -60,8 +61,8 @@ func (s *AuthService) Register(ctx context.Context, email string, password strin
 		return nil, errors.New("la contraseña debe tener al menos 6 caracteres")
 	}
 
-	if role != "admin" && role != "client" {
-		return nil, errors.New("rol debe ser 'admin' o 'client'")
+	if role != "admin" && role != "client" && role != "superadmin" {
+		return nil, errors.New("rol debe ser 'admin', 'client' o 'superadmin'")
 	}
 
 	// Verificar que el email no exista
@@ -281,6 +282,75 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
 		return err
 	}
 	return s.emailService.SendPasswordResetCode(email, code)
+}
+
+// InviteAdmin da de alta (o promueve) a un usuario como "admin" y le manda un
+// mail para que defina su propia contraseña (reusa el flujo de recuperación:
+// nadie, ni siquiera quien invita, conoce la contraseña del nuevo admin).
+// Solo puede resultar en rol "admin" — nunca "superadmin" (eso es manual).
+func (s *AuthService) InviteAdmin(ctx context.Context, email string) (*domain.User, error) {
+	if email == "" {
+		return nil, errors.New("email requerido")
+	}
+
+	existing, err := s.userRepository.GetByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+
+	if existing != nil {
+		if existing.Role == "admin" || existing.Role == "superadmin" {
+			return nil, errors.New("ese usuario ya es administrador")
+		}
+		existing.Role = "admin"
+		existing.UpdatedAt = time.Now()
+		if err := s.userRepository.Update(ctx, existing); err != nil {
+			return nil, err
+		}
+		if err := s.ForgotPassword(ctx, email); err != nil {
+			log.Printf("invite-admin: usuario promovido pero falló el mail de invitación (%s): %v", email, err)
+		}
+		return existing, nil
+	}
+
+	// Contraseña aleatoria que nadie conoce: el nuevo admin la define por mail.
+	randomPassword, err := generateNumericCode(24)
+	if err != nil {
+		return nil, fmt.Errorf("error generando contraseña temporal: %w", err)
+	}
+	user, err := s.Register(ctx, email, randomPassword, "admin")
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ForgotPassword(ctx, email); err != nil {
+		log.Printf("invite-admin: usuario creado pero falló el mail de invitación (%s): %v", email, err)
+	}
+	return user, nil
+}
+
+// ChangeUserRole promueve o degrada a un usuario entre "client" y "admin".
+// No se usa para otorgar "superadmin" (eso es manual/seed) ni para que un
+// usuario se cambie el rol a sí mismo (se valida en el handler, con el actor).
+func (s *AuthService) ChangeUserRole(ctx context.Context, userID primitive.ObjectID, newRole string) (*domain.User, error) {
+	if newRole != "admin" && newRole != "client" {
+		return nil, errors.New("rol debe ser 'admin' o 'client'")
+	}
+	user, err := s.userRepository.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, errors.New("usuario no encontrado")
+	}
+	if user.Role == "superadmin" {
+		return nil, errors.New("no se puede cambiar el rol de un superadmin")
+	}
+	user.Role = newRole
+	user.UpdatedAt = time.Now()
+	if err := s.userRepository.Update(ctx, user); err != nil {
+		return nil, err
+	}
+	return user, nil
 }
 
 // ResetPassword verifica el código y actualiza la contraseña del usuario.

@@ -211,7 +211,9 @@ func RequireAuth() gin.HandlerFunc {
 	}
 }
 
-// AdminMiddleware verifica que el usuario tenga rol "admin"
+// AdminMiddleware verifica que el usuario tenga rol "admin" o "superadmin"
+// (superadmin es superconjunto: puede todo lo que puede un admin, y además
+// gestionar otros admins vía SuperAdminMiddleware en rutas específicas).
 func AdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, exists := c.Get("role")
@@ -222,8 +224,31 @@ func AdminMiddleware() gin.HandlerFunc {
 		}
 
 		userRole, ok := role.(string)
-		if !ok || userRole != "admin" {
+		if !ok || (userRole != "admin" && userRole != "superadmin") {
 			c.JSON(http.StatusForbidden, gin.H{"error": "acceso denegado: se requiere rol admin"})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// SuperAdminMiddleware verifica que el usuario tenga rol "superadmin". Se usa
+// además de AdminMiddleware, en rutas puntuales de gestión de administradores
+// (invitar, promover, degradar, eliminar).
+func SuperAdminMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, exists := c.Get("role")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "autenticación requerida"})
+			c.Abort()
+			return
+		}
+
+		userRole, ok := role.(string)
+		if !ok || userRole != "superadmin" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "acceso denegado: se requiere rol superadmin"})
 			c.Abort()
 			return
 		}

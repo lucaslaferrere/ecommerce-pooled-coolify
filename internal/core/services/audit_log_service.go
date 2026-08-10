@@ -50,7 +50,9 @@ var routeLabels = map[string]string{
 	"POST /admin/orders/:id/invoice":        "Subió una factura",
 	"POST /admin/orders/:id/invoice/resend": "Reenvió una factura",
 
-	"DELETE /admin/users/:id": "Eliminó un usuario",
+	"DELETE /admin/users/:id":        "Eliminó un usuario",
+	"POST /admin/users/invite-admin": "Invitó a un nuevo administrador",
+	"PATCH /admin/users/:id/role":    "Cambió el rol de un usuario",
 
 	"PUT /admin/settings/abandoned-cart-email": "Editó la plantilla del mail de carrito abandonado",
 	"POST /admin/email-templates":              "Creó una plantilla de mail",

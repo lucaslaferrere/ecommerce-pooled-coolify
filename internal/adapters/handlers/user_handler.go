@@ -13,12 +13,14 @@ import (
 // UserHandler maneja las peticiones HTTP relacionadas con usuarios
 type UserHandler struct {
 	userService *services.UserService
+	authService *services.AuthService
 }
 
 // NewUserHandler crea una nueva instancia de UserHandler
-func NewUserHandler(userService *services.UserService) *UserHandler {
+func NewUserHandler(userService *services.UserService, authService *services.AuthService) *UserHandler {
 	return &UserHandler{
 		userService: userService,
+		authService: authService,
 	}
 }
 
@@ -169,12 +171,34 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 }
 
 // DeleteUser maneja DELETE /api/users/:id
+// Nadie puede borrarse a sí mismo. Para borrar un admin/superadmin, quien
+// pide el borrado tiene que ser superadmin (a un cliente lo puede borrar
+// cualquier admin, como hasta ahora).
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := primitive.ObjectIDFromHex(idStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
 		return
+	}
+
+	actorIDRaw, _ := c.Get("user_id")
+	if actorIDStr, ok := actorIDRaw.(string); ok && actorIDStr == idStr {
+		c.JSON(http.StatusForbidden, gin.H{"error": "no podés eliminar tu propia cuenta"})
+		return
+	}
+
+	target, err := h.userService.GetUser(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if target != nil && (target.Role == "admin" || target.Role == "superadmin") {
+		actorRole, _ := c.Get("role")
+		if role, _ := actorRole.(string); role != "superadmin" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "solo un superadmin puede eliminar a un administrador"})
+			return
+		}
 	}
 
 	if err := h.userService.DeleteUser(c.Request.Context(), id); err != nil {
@@ -196,4 +220,67 @@ func (h *UserHandler) RegisterRoutes(router *gin.Engine) {
 		users.PUT("/:id", h.UpdateUser)
 		users.DELETE("/:id", h.DeleteUser)
 	}
+}
+
+// InviteAdmin maneja POST /admin/users/invite-admin (solo superadmin).
+// Da de alta (o promueve) a un usuario como admin y le manda un mail para
+// que defina su propia contraseña.
+func (h *UserHandler) InviteAdmin(c *gin.Context) {
+	var req struct {
+		Email string `json:"email" binding:"required,email"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	user, err := h.authService.InviteAdmin(c.Request.Context(), req.Email)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"id":    user.ID.Hex(),
+		"email": user.Email,
+		"role":  user.Role,
+	})
+}
+
+// ChangeUserRole maneja PATCH /admin/users/:id/role (solo superadmin).
+// Promueve o degrada entre "client" y "admin". No se puede usar sobre uno
+// mismo, ni para tocar a un superadmin.
+func (h *UserHandler) ChangeUserRole(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+		return
+	}
+
+	actorIDRaw, _ := c.Get("user_id")
+	if actorIDStr, ok := actorIDRaw.(string); ok && actorIDStr == idStr {
+		c.JSON(http.StatusForbidden, gin.H{"error": "no podés cambiar tu propio rol"})
+		return
+	}
+
+	var req struct {
+		Role string `json:"role" binding:"required,oneof=admin client"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	user, err := h.authService.ChangeUserRole(c.Request.Context(), id, req.Role)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":    user.ID.Hex(),
+		"email": user.Email,
+		"role":  user.Role,
+	})
 }
