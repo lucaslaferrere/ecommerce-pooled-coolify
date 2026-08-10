@@ -159,6 +159,22 @@ func ensureIndexes(ctx context.Context, db *mongo.Database) error {
 			},
 		},
 		{
+			// Soporta el filtro por admin en el log de auditoría.
+			coll: "admin_audit_log",
+			model: mongo.IndexModel{
+				Keys:    bson.D{{Key: "admin_id", Value: 1}, {Key: "created_at", Value: -1}},
+				Options: options.Index().SetName("audit_admin_created"),
+			},
+		},
+		{
+			// Orden cronológico general del log de auditoría.
+			coll: "admin_audit_log",
+			model: mongo.IndexModel{
+				Keys:    bson.D{{Key: "created_at", Value: -1}},
+				Options: options.Index().SetName("audit_created_at"),
+			},
+		},
+		{
 			coll: "events",
 			model: mongo.IndexModel{
 				Keys:    bson.D{{Key: "session_id", Value: 1}, {Key: "created_at", Value: -1}},

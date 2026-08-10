@@ -36,6 +36,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	cartLinkRepo   := repositories.NewCartLinkRepositoryMongo(db.Collection("cart_links"))
 	couponRepo     := repositories.NewCouponRepositoryMongo(db.Collection("coupons"))
 	settingRepo    := repositories.NewSettingRepositoryMongo(db.Collection("settings"))
+	auditLogRepo   := repositories.NewAuditLogRepositoryMongo(db.Collection("admin_audit_log"))
 	cartRepo       := repositories.NewCartRepositoryMongo(db.Collection("carts"))
 	invoiceRepo    := repositories.NewInvoiceRepositoryMongo(db.Collection("invoices"))
 	emailTemplateRepo := repositories.NewEmailTemplateRepositoryMongo(db.Collection("email_templates"))
@@ -59,6 +60,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	cartLinkService  := services.NewCartLinkService(cartLinkRepo)
 	couponService    := services.NewCouponService(couponRepo, orderRepo)
 	settingService := services.NewSettingService(settingRepo)
+	auditLogService := services.NewAuditLogService(auditLogRepo)
 	emailTemplateService := services.NewEmailTemplateService(emailTemplateRepo, settingService)
 	cartStorageService := services.NewCartStorageService(cartRepo)
 	invoiceService := services.NewInvoiceService(invoiceRepo, orderService, emailService)
@@ -85,6 +87,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 	kitHandler             := handlers.NewKitHandler(kitService, imageStorage)
 	couponHandler          := handlers.NewCouponHandler(couponService)
 	settingHandler := handlers.NewSettingHandler(settingService)
+	auditLogHandler := handlers.NewAuditLogHandler(auditLogService)
 	orderHandler           := handlers.NewOrderHandler(orderService, cartService, paymentService, emailService, couponService, cartStorageService)
 	webhookHandler         := handlers.NewWebhookHandler(paymentService, orderService, emailService, cfg.MPWebhookSecret)
 	distributorLeadHandler := handlers.NewDistributorLeadHandler(distributorLeadService)
@@ -173,8 +176,11 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 
 	// ── Rutas de ADMINISTRADOR — requieren JWT con role="admin" ───────────────
 	admin := v1.Group("/admin")
-	admin.Use(handlers.AuthMiddleware(authService), handlers.AdminMiddleware())
+	admin.Use(handlers.AuthMiddleware(authService), handlers.AdminMiddleware(), handlers.AuditLogMiddleware(auditLogService))
 	{
+		admin.GET("/audit-logs", auditLogHandler.List)
+		admin.GET("/audit-logs/admins", auditLogHandler.ListAdmins)
+
 		admin.GET("/users", userHandler.ListUsers)
 		admin.DELETE("/users/:id", userHandler.DeleteUser)
 
