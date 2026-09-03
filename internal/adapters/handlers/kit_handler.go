@@ -364,6 +364,21 @@ func (h *KitHandler) BulkUpdatePrice(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"updated": updated})
 }
 
+// RefreshSuggestedPrices maneja POST /api/v1/admin/kits/refresh-suggested-prices.
+// Recalcula el precio de cada kit como la suma de los precios actuales de
+// sus productos y persiste los que quedaron desactualizados.
+func (h *KitHandler) RefreshSuggestedPrices(c *gin.Context) {
+	refreshed, err := h.kitService.RefreshSuggestedPrices(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"updated_count": len(refreshed),
+		"updated":       refreshed,
+	})
+}
+
 func (h *KitHandler) uploadKitImageIfPresent(c *gin.Context) (string, error) {
 	fh, err := c.FormFile("image")
 	if err != nil {

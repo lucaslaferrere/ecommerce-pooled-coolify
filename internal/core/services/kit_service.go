@@ -14,11 +14,12 @@ import (
 )
 
 type KitService struct {
-	kitRepository ports.KitRepository
+	kitRepository     ports.KitRepository
+	productRepository ports.ProductRepository
 }
 
-func NewKitService(kitRepository ports.KitRepository) *KitService {
-	return &KitService{kitRepository: kitRepository}
+func NewKitService(kitRepository ports.KitRepository, productRepository ports.ProductRepository) *KitService {
+	return &KitService{kitRepository: kitRepository, productRepository: productRepository}
 }
 
 func (s *KitService) CreateKit(ctx context.Context, kit *domain.Kit) error {
@@ -126,4 +127,78 @@ func (s *KitService) BulkUpdatePrice(ctx context.Context, percent float64, ids [
 		updated++
 	}
 	return updated, nil
+}
+
+// KitPriceRefresh describe un kit cuyo precio se recalculó.
+type KitPriceRefresh struct {
+	ID       string  `json:"id"`
+	Name     string  `json:"name"`
+	OldPrice float64 `json:"old_price"`
+	NewPrice float64 `json:"new_price"`
+}
+
+// RefreshSuggestedPrices recalcula el precio de cada kit como la suma de los
+// precios actuales de sus productos (base_price × cantidad en el kit) y
+// persiste solo los que quedaron desactualizados. No toca kits cuyo precio
+// ya coincide con la suma actual.
+func (s *KitService) RefreshSuggestedPrices(ctx context.Context) ([]KitPriceRefresh, error) {
+	kits, err := s.kitRepository.List(ctx, 0, 100000)
+	if err != nil {
+		return nil, err
+	}
+
+	idSet := map[string]primitive.ObjectID{}
+	for _, k := range kits {
+		for _, pid := range k.ProductIDs {
+			if _, ok := idSet[pid]; ok {
+				continue
+			}
+			if oid, err := primitive.ObjectIDFromHex(pid); err == nil {
+				idSet[pid] = oid
+			}
+		}
+	}
+	objectIDs := make([]primitive.ObjectID, 0, len(idSet))
+	for _, oid := range idSet {
+		objectIDs = append(objectIDs, oid)
+	}
+
+	products, err := s.productRepository.List(ctx, map[string]interface{}{
+		"_id": map[string]interface{}{"$in": objectIDs},
+	}, 0, int64(len(objectIDs)))
+	if err != nil {
+		return nil, err
+	}
+	priceByID := make(map[string]float64, len(products))
+	for _, p := range products {
+		priceByID[p.ID.Hex()] = p.BasePrice
+	}
+
+	refreshed := []KitPriceRefresh{}
+	for _, k := range kits {
+		sum := 0.0
+		missing := false
+		for _, pid := range k.ProductIDs {
+			price, ok := priceByID[pid]
+			if !ok {
+				missing = true
+				break
+			}
+			sum += price
+		}
+		if missing || sum == k.Price {
+			continue
+		}
+
+		refreshed = append(refreshed, KitPriceRefresh{
+			ID: k.ID.Hex(), Name: k.Name, OldPrice: k.Price, NewPrice: sum,
+		})
+		k.Price = sum
+		k.UpdatedAt = time.Now()
+		if err := s.kitRepository.Update(ctx, k); err != nil {
+			log.Printf("RefreshSuggestedPrices: no se pudo actualizar kit %s: %v", k.ID.Hex(), err)
+			continue
+		}
+	}
+	return refreshed, nil
 }

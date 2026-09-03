@@ -49,7 +49,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		WithPasswordReset(passwordResetRepo, emailService)
 	userService := services.NewUserService(userRepo)
 	productService := services.NewProductService(productRepo)
-	kitService := services.NewKitService(kitRepo)
+	kitService := services.NewKitService(kitRepo, productRepo)
 	cartService := services.NewCartService(productRepo, kitRepo)
 	orderService := services.NewOrderService(orderRepo, productRepo, realtimeHub)
 	distributorLeadService := services.NewDistributorLeadService(distributorLeadRepo)
@@ -208,6 +208,7 @@ func BuildRouter(cfg *config.Config, db *mongo.Database) *gin.Engine {
 		admin.PATCH("/kits/:id/visibility", kitHandler.SetKitVisibility)
 		admin.PATCH("/kits/:id/sort-order", kitHandler.SetKitSortOrder)
 		admin.PATCH("/kits/bulk-price", kitHandler.BulkUpdatePrice)
+		admin.POST("/kits/refresh-suggested-prices", kitHandler.RefreshSuggestedPrices)
 		admin.DELETE("/kits/:id", kitHandler.DeleteKit)
 
 		admin.GET("/coupons", couponHandler.List)
